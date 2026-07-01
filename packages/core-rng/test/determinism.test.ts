@@ -43,17 +43,17 @@ describe('createByteGenerator', () => {
     expect(bytesA).not.toEqual(bytesB);
   });
 
-  it('matches a known fixed-seed expected value (regression guard)', () => {
+  it('matches an independently computed fixed vector (regression guard)', () => {
+    // Computed outside this codebase via Node's crypto module directly:
+    // createHmac('sha256', 'a'.repeat(64)).update('player-1:0:0').digest()
+    // If this ever changes, the algorithm changed and every historical bet
+    // under RNG version '1.1' is no longer independently verifiable.
+    const EXPECTED_FIRST_8_BYTES = [151, 91, 199, 71, 54, 27, 27, 213];
+
     const gen = createByteGenerator(FIXED_OPTIONS);
-    const first = gen.next().value;
-    // Pinned expected output for serverSeed='a'x64, clientSeed='player-1',
-    // nonce=0, round=0 — if this ever changes, the algorithm changed and
-    // every historical bet under this RNG version is no longer verifiable.
-    expect(typeof first).toBe('number');
-    // Re-derive independently to catch accidental algorithm drift without
-    // hardcoding a magic number that could mask a real regression.
-    const again = createByteGenerator(FIXED_OPTIONS);
-    expect(again.next().value).toBe(first);
+    const first8 = Array.from({ length: 8 }, () => gen.next().value);
+
+    expect(first8).toEqual(EXPECTED_FIRST_8_BYTES);
   });
 });
 
@@ -76,6 +76,16 @@ describe('createFloatGenerator', () => {
       expect(float).toBeLessThan(1);
     }
   });
+
+  it('matches an independently computed fixed vector (regression guard)', () => {
+    // Same derivation as the byte-generator fixed vector above, summed as
+    // byte[i] / 256**(i+1) for i in 0..3 over the first 4 bytes of the
+    // digest — computed independently outside this codebase.
+    const EXPECTED_FIRST_FLOAT = 0.5912441776599735;
+
+    const gen = createFloatGenerator(FIXED_OPTIONS);
+    expect(gen.next().value).toBe(EXPECTED_FIRST_FLOAT);
+  });
 });
 
 describe('seed generation & commitment', () => {
@@ -89,11 +99,13 @@ describe('seed generation & commitment', () => {
     expect(seed).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it('hashServerSeed is deterministic and matches SHA256', () => {
+  it('hashServerSeed matches an independently computed SHA256 digest', () => {
     const seed = 'b'.repeat(64);
-    expect(hashServerSeed(seed)).toBe(hashServerSeed(seed));
-    // SHA256('b' x 64) — independently verifiable with any SHA256 tool.
-    expect(hashServerSeed(seed)).toMatch(/^[0-9a-f]{64}$/);
+    // Computed independently via: createHash('sha256').update('b'.repeat(64)).digest('hex')
+    // (verifiable with any standalone SHA256 tool, e.g. `echo -n "$(python3 -c "print('b'*64,end='')")" | sha256sum`).
+    const EXPECTED_DIGEST = 'a0fab1377f49a759b57f63318262ebe89fabfc990e8e93ceac2984561482b9d4';
+
+    expect(hashServerSeed(seed)).toBe(EXPECTED_DIGEST);
   });
 
   it('hashServerSeed never returns the input seed itself', () => {
