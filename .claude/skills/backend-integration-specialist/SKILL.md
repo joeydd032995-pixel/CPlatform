@@ -18,6 +18,12 @@ records them transactionally, and the API routes that expose all of this.
 - `references/seedService.ts` — canonical Redis-backed seed state: lazy
   seed creation on first access, client seed rotation (resets nonce),
   server seed rotation (archives to `previousSeeds`), and nonce increment.
+  Two concurrency bugs found in code review have already been fixed here:
+  first-time seed creation now uses `SET ... NX` so two concurrent
+  first-time bets can't race and strand a seed's hash with no raw seed
+  ever stored; and `getSeedState` now merges the live `nonce:${userId}`
+  counter back into `currentNonce` on every read, since incrementing that
+  counter used to have no effect on the value everything else reads.
 - `references/gameService.ts` — canonical bet-processing transaction shape.
   **This is intentionally incomplete** — treat the gaps below as a checklist,
   not something to silently work around:
