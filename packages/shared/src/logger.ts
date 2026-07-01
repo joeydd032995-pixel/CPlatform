@@ -1,0 +1,62 @@
+import pino from 'pino';
+
+// Structured logging with a recursive, depth-independent redactor.
+//
+// fast-redact (pino's built-in `redact` option) only matches FIXED path
+// depths — 'a.b.serverSeed' won't catch 'a.b.c.serverSeed'. Enumerating
+// every possible depth is fragile and unbounded, so instead we redact by
+// KEY NAME via a `formatters.log` hook that walks the entire log object
+// recursively before it's serialized. This catches `serverSeed`/
+// `activeServerSeed` wherever they appear, no matter how deeply nested
+// (seed state objects, RNG options, request bodies, etc.), and can't be
+// bypassed by an unanticipated shape the way a fixed-path list can.
+const SENSITIVE_KEYS = new Set([
+  'serverSeed',
+  'activeServerSeed',
+  'authorization',
+  'cookie',
+]);
+
+const REDACTED = '[REDACTED]';
+
+function deepRedact(value: unknown, seen: WeakSet<object> = new WeakSet()): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => deepRedact(item, seen));
+  }
+
+  if (value !== null && typeof value === 'object') {
+    if (seen.has(value)) return '[Circular]';
+    seen.add(value);
+
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+      out[key] = SENSITIVE_KEYS.has(key) ? REDACTED : deepRedact(val, seen);
+    }
+    return out;
+  }
+
+  return value;
+}
+
+// Factory (rather than a bare singleton) so tests can build a logger from
+// this exact production config against a capturing stream, instead of
+// duplicating the redaction setup — see packages/shared/test/logger.test.ts.
+export function createLogger(destination?: pino.DestinationStream): pino.Logger {
+  const options: pino.LoggerOptions = {
+    level: process.env.LOG_LEVEL ?? 'info',
+    formatters: {
+      log(object) {
+        return deepRedact(object) as Record<string, unknown>;
+      },
+    },
+  };
+  return destination ? pino(options, destination) : pino(options);
+}
+
+export const logger = createLogger();
+
+export type Logger = typeof logger;
+
+// Exported so tests exercise the real redaction logic rather than a
+// duplicated copy of it (see packages/shared/test/logger.test.ts).
+export { deepRedact, SENSITIVE_KEYS };

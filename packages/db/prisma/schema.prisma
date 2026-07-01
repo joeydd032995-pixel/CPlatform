@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id      String @id @default(cuid())
+  balance Decimal @default(0) @db.Decimal(18, 8)
+
+  bets  Bet[]
+  seeds RevealedSeed[]
+}
+
+model Bet {
+  id             String   @id @default(cuid())
+  userId         String
+  game           String
+  betAmount      Decimal  @db.Decimal(18, 8)
+  payout         Decimal  @default(0) @db.Decimal(18, 8)
+  multiplier     Decimal  @db.Decimal(18, 8)
+  serverSeedHash String
+  clientSeed     String
+  nonce          Int
+  outcome        Json
+  params         Json
+  timestamp      DateTime @default(now())
+
+  // Durable idempotency backstop: even if the Redis-based short-circuit
+  // (apps/server/src/idempotency.ts) is unavailable or flushed, a retried
+  // request with the same key hits this unique constraint instead of
+  // creating a duplicate bet.
+  idempotencyKey String? @unique
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+}
+
+model RevealedSeed {
+  id             String   @id @default(cuid())
+  userId         String
+  serverSeed     String
+  serverSeedHash String
+  clientSeed     String
+  finalNonce     Int
+  rotatedAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, rotatedAt])
+}
