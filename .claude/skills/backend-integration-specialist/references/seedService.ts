@@ -3,6 +3,19 @@ import { generateServerSeed, generateClientSeed, hashServerSeed } from '../../co
 import type { UserSeedState, RevealedSeedRecord } from '../../core/types';
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+redis.on('error', (err) => {
+  // TODO: route through structured logger, never log seed values
+  console.error('Redis connection error', err);
+});
+
+// KNOWN GAP: updateClientSeed and rotateServerSeed below still do a plain
+// get -> mutate in JS -> set, so two concurrent calls for the same user can
+// race (last write wins, silently discarding the other's intent) and a
+// rotation can stomp an in-flight bet's nonce reset. getSeedState's
+// first-time creation was hardened with SET...NX (see above), but giving
+// these two the same treatment needs either a Lua compare-and-set script or
+// a distributed lock (e.g. Redlock) around rotation — deferred here as a
+// heavier, coupled change rather than a local one-line fix.
 
 export async function getSeedState(userId: string): Promise<UserSeedState> {
   const key = `seed:${userId}`;

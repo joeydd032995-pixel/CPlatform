@@ -1,6 +1,7 @@
-// Verbatim reference (nuts.gg). European-style: 0-36 (37 values). This
-// particular array/comment claims "Numbers 37 maps to the extra slot" but
-// the array only goes to 36 with a stray trailing `37` — treat the color
+// Verbatim reference (nuts.gg), with one correction: the source had a stray
+// trailing `37` in rouletteNumbersArray (removed below) — a European wheel
+// only has 37 pockets numbered 0-36, and `calculateRouletteResult`
+// (`Math.floor(float * 37)`) can never produce 37 anyway. Treat the color
 // mapping below as PLAUSIBLE BUT UNVERIFIED against a real European wheel
 // layout; testing-devops-specialist should confirm it against the actual
 // felt/wheel red-black assignment before shipping.
@@ -17,7 +18,7 @@ export const rouletteNumbersArray = [
   0,  1,  2,  3,  4,  5,  6,  7,  8,  9,
   10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
   20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-  30, 31, 32, 33, 34, 35, 36, 37,
+  30, 31, 32, 33, 34, 35, 36,
 ] as const;
 
 export type RouletteResult = (typeof rouletteNumbersArray)[number];

@@ -20,7 +20,7 @@ model Bet {
   game            String
   betAmount       Decimal
   payout          Decimal  @default(0)
-  multiplier      Float
+  multiplier      Decimal
   serverSeedHash  String
   clientSeed      String
   nonce           Int

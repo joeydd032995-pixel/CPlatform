@@ -13,7 +13,13 @@
  * uniformity", i.e. the RNG looks fair).
  */
 export function chiSquareUniformity(observed: number[]): number {
+  if (observed.length === 0) {
+    throw new RangeError('observed must not be empty');
+  }
   const totalObservations = observed.reduce((sum, count) => sum + count, 0);
+  if (totalObservations === 0) {
+    throw new RangeError('observed must contain at least one count');
+  }
   const expectedPerBucket = totalObservations / observed.length;
 
   return observed.reduce((chiSquared, count) => {
@@ -46,11 +52,17 @@ export function runDistributionTest<T>({
   gameFn: (round: number) => T;
   bucketFn: (result: T) => number;
 }): number {
+  if (bucketCount <= 0) {
+    throw new RangeError('bucketCount must be positive');
+  }
   const buckets = new Array(bucketCount).fill(0);
 
   for (let round = 0; round < rounds; round++) {
     const result = gameFn(round);
     const bucketIndex = bucketFn(result);
+    if (!Number.isInteger(bucketIndex) || bucketIndex < 0 || bucketIndex >= bucketCount) {
+      throw new RangeError(`bucketFn returned invalid bucket index ${bucketIndex}`);
+    }
     buckets[bucketIndex] += 1;
   }
 
@@ -71,6 +83,9 @@ export async function simulateRTP(
 
   for (let round = 0; round < rounds; round++) {
     const { betAmount, payout } = gameFn(round);
+    if (betAmount <= 0) {
+      throw new RangeError('betAmount must be positive');
+    }
     totalReturn += payout / betAmount;
   }
 

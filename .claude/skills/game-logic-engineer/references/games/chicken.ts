@@ -13,7 +13,7 @@ export enum ChickenDifficultySlice {
 }
 
 export type ChickenRNGOptions = RNGOptions & {
-  difficltySlice: ChickenDifficultySlice;
+  difficultySlice: ChickenDifficultySlice;
 };
 
 export const chickenRandomShuffle = (floatsArr: number[]): number[] => {
@@ -32,7 +32,7 @@ export const calculateChickenDeathPoint = (options: ChickenRNGOptions): number =
   const floatsArr = Array.from({ length: 20 }, () => floats.next().value);
 
   const shuffledArr = chickenRandomShuffle(floatsArr);
-  const slicedShuffledArr = shuffledArr.slice(0, options.difficltySlice);
+  const slicedShuffledArr = shuffledArr.slice(0, options.difficultySlice);
 
   return Math.min(...slicedShuffledArr);
 };

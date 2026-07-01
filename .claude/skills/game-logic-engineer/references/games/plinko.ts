@@ -96,7 +96,11 @@ export const getPlinkoMultipliersTable = ({
     },
   } as const;
 
-  return rowsToMultipliers[rows as keyof typeof rowsToMultipliers][risk];
+  const table = rowsToMultipliers[rows as keyof typeof rowsToMultipliers];
+  if (table == null) {
+    throw new Error(`Unsupported Plinko rows: ${rows} (expected 8-16)`);
+  }
+  return table[risk];
 };
 
 export const plinkoBallPathToMultiplierIndex = ({

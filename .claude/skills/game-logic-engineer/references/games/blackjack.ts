@@ -11,7 +11,7 @@
 // generator semantics, renamed exports.
 
 import { floatsGenerator, RNGOptions } from "./provably-fair.ts";
-import { deck, cardIdToCard } from "./deck.ts";
+import { deck, cardIdToCard, type Card } from "./deck.ts";
 
 const BLACKJACK_GAME_MAX_ROUNDS_SOFT_LIMIT = 29;
 
@@ -23,6 +23,10 @@ export const calculateBlackjackResults = ({
   limit = BLACKJACK_GAME_MAX_ROUNDS_SOFT_LIMIT,
   ...rngOptions
 }: CalculateBlackjackResultsOptions): Card[] => {
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`Invalid blackjack limit: ${limit}`);
+  }
+
   const floatsRng = floatsGenerator(rngOptions);
 
   return Array(limit)

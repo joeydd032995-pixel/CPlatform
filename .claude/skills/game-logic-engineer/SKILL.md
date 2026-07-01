@@ -43,7 +43,27 @@ real behavior.
 | Darts | ✅ `games/darts.ts` (polar coords) | ❌ needs zone-to-multiplier mapping |
 
 `references/house-edge-payouts.ts` has the shared `applyHouseEdge`/`expectedRTP`
-helpers to build these payout formulas on top of.
+helpers to build these payout formulas on top of (its Monte Carlo RTP checker
+lives only in `testing-devops-specialist`'s `fairness-test-template.ts` —
+don't duplicate `simulateRTP` here).
+
+## Fixes already applied after code review
+
+- `blackjack.ts`: was missing the `Card` import (failed typecheck) and didn't
+  validate `limit` before `Array(limit)` — both fixed.
+- `chicken.ts`: `ChickenRNGOptions.difficltySlice` was a typo — renamed to
+  `difficultySlice` (safe now since nothing outside this repo consumes it yet).
+- `hilo.ts`: `resolveHiLo`'s odds assumed a shrinking 51-card deck, which
+  contradicts `calculateHiloResults`'s with-replacement draw. Fixed to a
+  constant 52-card denominator (4 favorable outcomes for "equal", not 3) and
+  now routes through `applyHouseEdge()` instead of a locally duplicated
+  `HOUSE_EDGE` constant.
+- `plinko.ts`: `getPlinkoMultipliersTable` threw an opaque `TypeError` for
+  out-of-range `rows` instead of a readable error — fixed with an explicit
+  guard.
+- `roulette.ts`: `rouletteNumbersArray` had a stray trailing `37` (a European
+  wheel only has 0-36) — removed. The red/black color mapping itself is
+  still unverified (see the file's top comment).
 
 ## Conventions
 

@@ -9,20 +9,10 @@ export function expectedRTP(houseEdge: number): number {
   return (1 - houseEdge) * 100;
 }
 
-// Monte Carlo helper for empirically verifying a game's actual RTP matches
-// its theoretical expectedRTP() — see testing-devops-specialist's
-// fairness-test-template.ts for the full implementation.
-export async function simulateRTP(
-  gameFn: (round: number) => { betAmount: number; payout: number },
-  rounds: number = 10000
-): Promise<number> {
-  let totalReturn = 0;
-  for (let round = 0; round < rounds; round++) {
-    const { betAmount, payout } = gameFn(round);
-    totalReturn += payout / betAmount;
-  }
-  return (totalReturn / rounds) * 100;
-}
+// Monte Carlo RTP verification (comparing a game's actual RTP against its
+// theoretical expectedRTP() above) lives in testing-devops-specialist's
+// fairness-test-template.ts (`simulateRTP`) — that's the single source of
+// truth; don't duplicate it here, import it from there instead.
 
 // --- Games still needing their own payout/multiplier math ------------------
 // (outcome generators for all of these already exist in ./games/*.ts)
