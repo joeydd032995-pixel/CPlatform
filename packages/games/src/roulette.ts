@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
 import { InvalidBetParamsError } from '@cplatform/shared';
 import { applyHouseEdge } from './house-edge.js';
+import { validateBetAmount } from './bet-amount.js';
 
 export enum RouletteColor {
   Green = 'green',
@@ -178,8 +179,11 @@ const CORNER_KEYS = new Set(ROULETTE_CORNERS.map(sortedKey));
 const SPLIT_KEYS = new Set(ROULETTE_SPLITS.map(sortedKey));
 
 // Real European wheel red numbers (fixed lookup fact, independent of the
-// simplified column/row grid model above).
-export const REAL_RED_NUMBERS = new Set([
+// simplified column/row grid model above). Module-private and never
+// exported as a mutable Set — isWin()'s red/black bets depend on its
+// contents staying fixed; an external .clear()/.add()/.delete() would
+// silently corrupt roulette resolution process-wide.
+const REAL_RED_NUMBERS = new Set([
   1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
 ]);
 
@@ -322,6 +326,7 @@ export function resolveRoulette(
   betAmount: number
 ): { outcome: RouletteOutcome; multiplier: number; payout: number } {
   const parsed = validateRouletteParams(params);
+  validateBetAmount('roulette', betAmount);
 
   const result = calculateRouletteResult(generatorOpts);
   const color = rouletteResultToColor(result);

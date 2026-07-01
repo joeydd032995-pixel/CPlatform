@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
 import { InvalidBetParamsError } from '@cplatform/shared';
+import { validateBetAmount } from './bet-amount.js';
 
 export enum PlinkoBallMove {
   Left = 'left',
@@ -45,14 +46,10 @@ export enum PlinkoRisk {
 
 export type PlinkoMultipliersTable = readonly number[];
 
-export const getPlinkoMultipliersTable = ({
-  risk,
-  rows,
-}: {
-  risk: PlinkoRisk;
-  rows: number;
-}): PlinkoMultipliersTable => {
-  const rowsToMultipliers = {
+// Hoisted to module scope: this table is fixed data, not something to
+// rebuild in every resolvePlinko() call (it sat on the hot path and every
+// 30k-round test allocated a fresh copy of all 27 arrays per call).
+const ROWS_TO_MULTIPLIERS = {
     8: {
       [PlinkoRisk.Low]: [5.8, 2.1, 1.1, 0.95, 0.5, 0.95, 1.1, 2.1, 5.8],
       [PlinkoRisk.Medium]: [13, 3, 1.29, 0.68, 0.37, 0.68, 1.29, 3, 13],
@@ -135,7 +132,14 @@ export const getPlinkoMultipliersTable = ({
     },
   } as const;
 
-  const table = rowsToMultipliers[rows as keyof typeof rowsToMultipliers];
+export const getPlinkoMultipliersTable = ({
+  risk,
+  rows,
+}: {
+  risk: PlinkoRisk;
+  rows: number;
+}): PlinkoMultipliersTable => {
+  const table = ROWS_TO_MULTIPLIERS[rows as keyof typeof ROWS_TO_MULTIPLIERS];
   if (table == null) {
     throw new Error(`Unsupported Plinko rows: ${rows} (expected 8-16)`);
   }
@@ -200,6 +204,7 @@ export function resolvePlinko(
   betAmount: number
 ): { outcome: PlinkoOutcome; multiplier: number; payout: number } {
   const parsed = validatePlinkoParams(params);
+  validateBetAmount('plinko', betAmount);
   const risk = toPlinkoRisk(parsed.risk);
 
   const path = calculatePlinkoBallPath({ ...generatorOpts, rows: parsed.rows });

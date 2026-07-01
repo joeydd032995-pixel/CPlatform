@@ -42,18 +42,23 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
   return result.data;
 }
 
+const JurisdictionFlagsSchema = z.record(z.array(z.string()));
+
 export function parseJurisdictionFlags(raw: string): Record<string, string[]> {
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new Error('JURISDICTION_FLAGS must decode to a JSON object');
-    }
-    return parsed as Record<string, string[]>;
+    parsed = JSON.parse(raw);
   } catch (err) {
     throw new Error(
       `JURISDICTION_FLAGS is not valid JSON: ${err instanceof Error ? err.message : String(err)}`
     );
   }
+
+  const result = JurisdictionFlagsSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error('JURISDICTION_FLAGS must decode to an object of string arrays');
+  }
+  return result.data;
 }
 
 // Convenience for process entrypoints: parse process.env and exit(1) with a

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
 import { InvalidBetParamsError } from '@cplatform/shared';
 import { applyHouseEdge } from './house-edge.js';
+import { validateBetAmount } from './bet-amount.js';
 
 export const calculateDiceRoll = (rngOptions: GeneratorOptions): number => {
   const float = createFloatGenerator(rngOptions).next().value;
@@ -34,6 +35,7 @@ export function resolveDice(
   betAmount: number
 ): { outcome: DiceOutcome; multiplier: number; payout: number } {
   const parsed = validateDiceParams(params);
+  validateBetAmount('dice', betAmount);
 
   const roll = calculateDiceRoll(generatorOpts);
   const winChance =

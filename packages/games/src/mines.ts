@@ -7,6 +7,7 @@ import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng
 import { InvalidBetParamsError } from '@cplatform/shared';
 import { nCr } from './combinatorics.js';
 import { applyHouseEdge } from './house-edge.js';
+import { validateBetAmount } from './bet-amount.js';
 
 export const MINES_GAME_TILES_COUNT = 25;
 
@@ -16,7 +17,7 @@ export const calculateMinesPositions = ({
   mines,
   ...rngOptions
 }: MinesRNGOptions): number[] => {
-  const floatsRng = createFloatGenerator({ ...rngOptions });
+  const floatsRng = createFloatGenerator(rngOptions);
 
   const remainingPositions = Array(MINES_GAME_TILES_COUNT)
     .fill(0)
@@ -81,7 +82,7 @@ export const MinesParamsSchema = z
     mines: z.number().int().min(1).max(24),
     picks: z.number().int().min(0),
   })
-  .refine((p) => p.picks <= 25 - p.mines, {
+  .refine((p) => p.picks <= MINES_GAME_TILES_COUNT - p.mines, {
     message: 'picks exceeds safe tile count',
   });
 
@@ -89,7 +90,9 @@ export type MinesParams = z.infer<typeof MinesParamsSchema>;
 
 export function minesMultiplier(mines: number, picks: number): number {
   if (picks === 0) return 1;
-  return applyHouseEdge(nCr(25, picks) / nCr(25 - mines, picks));
+  return applyHouseEdge(
+    nCr(MINES_GAME_TILES_COUNT, picks) / nCr(MINES_GAME_TILES_COUNT - mines, picks)
+  );
 }
 
 export type MinesOutcome = {
@@ -104,6 +107,7 @@ export function resolveMines(
   betAmount: number
 ): { outcome: MinesOutcome; multiplier: number; payout: number } {
   const parsed = validateMinesParams(params);
+  validateBetAmount('mines', betAmount);
 
   const minePositions = calculateMinesPositions({
     ...generatorOpts,

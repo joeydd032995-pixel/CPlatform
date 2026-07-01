@@ -80,4 +80,12 @@ describe('parseJurisdictionFlags', () => {
   it('rejects JSON null', () => {
     expect(() => parseJurisdictionFlags('null')).toThrow();
   });
+
+  it('rejects a value that is not a string array', () => {
+    expect(() => parseJurisdictionFlags('{"us":true}')).toThrow();
+  });
+
+  it('rejects a value array containing non-strings', () => {
+    expect(() => parseJurisdictionFlags('{"us":[1,2]}')).toThrow();
+  });
 });

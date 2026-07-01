@@ -1,5 +1,6 @@
 export { nCr } from './combinatorics.js';
 export { applyHouseEdge, expectedRTP } from './house-edge.js';
+export { validateBetAmount } from './bet-amount.js';
 
 export {
   MINES_GAME_TILES_COUNT,
@@ -43,7 +44,6 @@ export {
   ROULETTE_SIX_LINES,
   ROULETTE_CORNERS,
   ROULETTE_SPLITS,
-  REAL_RED_NUMBERS,
   RouletteBetTypeSchema,
   RouletteParamsSchema,
   resolveRoulette,
