@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  balance   Decimal  @default(0)
+  bets      Bet[]
+  seeds     RevealedSeed[]
+}
+
+model Bet {
+  id              String   @id @default(cuid())
+  userId          String
+  game            String
+  betAmount       Decimal
+  payout          Decimal  @default(0)
+  multiplier      Decimal
+  serverSeedHash  String
+  clientSeed      String
+  nonce           Int
+  outcome         Json
+  timestamp       DateTime @default(now())
+  params          Json
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model RevealedSeed {
+  id             String   @id @default(cuid())
+  userId         String
+  serverSeed     String
+  serverSeedHash String
+  clientSeed     String
+  finalNonce     Int
+  rotatedAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+}
