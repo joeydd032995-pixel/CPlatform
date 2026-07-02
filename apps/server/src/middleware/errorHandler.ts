@@ -13,6 +13,20 @@ function isZodLikeError(err: unknown): err is { issues: Array<{ path: (string | 
   );
 }
 
+// express.json() throws a SyntaxError (via body-parser) for malformed JSON
+// bodies, tagged with `status`/`statusCode` 400 and `type ===
+// 'entity.parse.failed'`. Without this check that error falls through to
+// the generic 500 branch below, which is wrong (it's a client input error,
+// not a server fault) and would also log the raw request body via `err`.
+function isJsonParseError(err: unknown): err is { status?: number; statusCode?: number; type?: string } {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    (err as { type?: unknown }).type === 'entity.parse.failed' &&
+    ((err as { status?: unknown }).status === 400 || (err as { statusCode?: unknown }).statusCode === 400)
+  );
+}
+
 // Express recognizes this as error-handling middleware purely by arity
 // (4 params) — do not remove any of the four, even the unused ones.
 export function errorHandler(
@@ -32,6 +46,12 @@ export function errorHandler(
     const issues = err.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
     logger.warn({ issues, path: req.path }, 'Request failed validation');
     res.status(400).json({ code: 'VALIDATION_ERROR', error: 'Invalid request', issues });
+    return;
+  }
+
+  if (isJsonParseError(err)) {
+    logger.warn({ path: req.path }, 'Request failed: malformed JSON body');
+    res.status(400).json({ code: 'INVALID_JSON', error: 'Malformed JSON body' });
     return;
   }
 

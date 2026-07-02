@@ -7,6 +7,12 @@ const PlayBodySchema = z.object({
   params: z.unknown(),
 });
 
+// Bounds the caller-supplied idempotency key before it reaches Redis/the DB
+// unique column -- an unbounded header value could otherwise be used to
+// bloat Redis keys or the Bet.idempotencyKey index with arbitrarily large
+// strings.
+const IdempotencyKeyHeaderSchema = z.string().max(128).optional();
+
 export interface GamesRouterDeps {
   gameService: ReturnType<typeof createGameService>;
   // Applied on the `/:game` route itself (rather than on the router's mount
@@ -25,7 +31,7 @@ export function createGamesRouter(deps: GamesRouterDeps): Router {
   router.post('/:game', ...middlewares, async (req, res, next) => {
     try {
       const body = PlayBodySchema.parse(req.body);
-      const idempotencyKey = req.header('idempotency-key') ?? undefined;
+      const idempotencyKey = IdempotencyKeyHeaderSchema.parse(req.header('idempotency-key') ?? undefined);
       const userId = req.userId;
       if (!userId) {
         // Should be unreachable in practice — authStub runs before this

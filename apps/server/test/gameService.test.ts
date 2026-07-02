@@ -159,4 +159,39 @@ describe('gameService.playGame', () => {
     const expectedBalance = 10000 - 20 * 10 + results.reduce((sum, r) => sum + r.payout, 0);
     expect(db.users.get(userId)!.balance).toBeCloseTo(expectedBalance, 6);
   });
+
+  it('durable idempotency backstop: DB unique-constraint hit (no Redis layer) returns the existing bet', async () => {
+    // No IdempotencyStore wired in at all, simulating the case where the
+    // Redis-level short-circuit was bypassed entirely (e.g. flushed
+    // between two racing calls) and the DB's unique constraint on
+    // idempotencyKey is the only thing standing between a legitimate
+    // replay and a duplicate bet / spurious 500.
+    const seedStore = new InMemorySeedStore();
+    const seedService = createSeedService(seedStore);
+    const db = createFakeDb();
+    const ensureUser = createFakeEnsureUser(db);
+    const gameService = createGameService({ db, seedService, idempotency: null });
+
+    const userId = 'user-db-backstop';
+    await ensureUser.ensureUser(userId);
+    const idempotencyKey = 'db-backstop-key';
+
+    const first = await gameService.playGame({
+      userId,
+      betAmount: 10,
+      game: 'dice',
+      params: { target: 50, direction: 'under' },
+      idempotencyKey,
+    });
+    const second = await gameService.playGame({
+      userId,
+      betAmount: 10,
+      game: 'dice',
+      params: { target: 50, direction: 'under' },
+      idempotencyKey,
+    });
+
+    expect(second.bet.id).toBe(first.bet.id);
+    expect(db.bets).toHaveLength(1);
+  });
 });

@@ -19,6 +19,7 @@ import type { Express } from 'express';
 describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
   let app: Express;
   let userId: string;
+  let redisClient: import('ioredis').Redis;
 
   beforeAll(async () => {
     const { loadEnv, parseJurisdictionFlags, logger } = await import('@cplatform/shared');
@@ -32,6 +33,7 @@ describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
     const env = loadEnv();
     const jurisdictionFlags = parseJurisdictionFlags(env.JURISDICTION_FLAGS);
     const redis = createRedisClient(env.REDIS_URL);
+    redisClient = redis;
     const seedStore = new RedisSeedStore(redis);
     const seedService = createSeedService(seedStore);
     const idempotency = new RedisIdempotencyStore(redis);
@@ -66,6 +68,10 @@ describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
     });
 
     userId = `integration-user-${Date.now()}`;
+  });
+
+  afterAll(async () => {
+    await redisClient.quit();
   });
 
   it('runs the full lifecycle: client-seed -> bet -> seeds -> rotate -> verify', async () => {

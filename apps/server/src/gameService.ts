@@ -69,6 +69,19 @@ export interface GameDb {
   };
 }
 
+// `Bet.idempotencyKey` is a single globally-unique DB column (see
+// packages/db/prisma/schema.prisma) rather than a composite
+// (userId, idempotencyKey) constraint. If the raw caller-supplied key were
+// stored as-is, two different users reusing the same key string could
+// collide, and the DB-level fallback below would leak one user's bet
+// (outcome, payout, seed hash) to the other. Namespacing the *stored*
+// value by userId gets the same effect as a composite unique constraint
+// without a schema migration -- the Redis-level idempotency store already
+// does exactly this (`idem:{userId}:{key}`), so this mirrors that pattern.
+function storageIdempotencyKey(userId: string, idempotencyKey: string): string {
+  return `${userId}:${idempotencyKey}`;
+}
+
 export interface PlayGameOptions {
   userId: string;
   betAmount: number;
@@ -149,6 +162,9 @@ export function createGameService(deps: GameServiceDeps) {
       clientSeed: tuple.clientSeed,
       nonce: tuple.nonce,
     };
+    const storedIdempotencyKey = idempotencyKey
+      ? storageIdempotencyKey(userId, idempotencyKey)
+      : null;
 
     let result: PlayGameResult;
     try {
@@ -190,7 +206,7 @@ export function createGameService(deps: GameServiceDeps) {
             nonce: tuple.nonce,
             outcome,
             params,
-            idempotencyKey: idempotencyKey ?? null,
+            idempotencyKey: storedIdempotencyKey,
           },
         });
 
@@ -209,8 +225,8 @@ export function createGameService(deps: GameServiceDeps) {
       // begin() calls), the DB's unique constraint on idempotencyKey is the
       // last line of defense — fetch and return the bet that won instead
       // of surfacing a spurious 500.
-      if (idempotencyKey && isUniqueConstraintViolation(err)) {
-        const existing = await db.bet.findUnique({ where: { idempotencyKey } });
+      if (storedIdempotencyKey && isUniqueConstraintViolation(err)) {
+        const existing = await db.bet.findUnique({ where: { idempotencyKey: storedIdempotencyKey } });
         if (!existing) throw err;
         result = {
           bet: existing,

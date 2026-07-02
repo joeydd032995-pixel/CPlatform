@@ -7,6 +7,10 @@ const ClientSeedBodySchema = z.object({
   clientSeed: z.string().min(1).max(64),
 });
 
+// Same bound as routes/games.ts's idempotency-key header validation --
+// keeps a caller-supplied header out of Redis/DB storage unbounded.
+const IdempotencyKeyHeaderSchema = z.string().max(128).optional();
+
 export interface SeedsRouterDeps {
   seedService: SeedService;
   // Rotation is naturally close to idempotent in intent, but a double
@@ -35,7 +39,7 @@ export function createSeedsRouter(deps: SeedsRouterDeps): Router {
   router.post('/rotate', async (req, res, next) => {
     try {
       const userId = req.userId as string;
-      const idempotencyKey = req.header('idempotency-key') ?? undefined;
+      const idempotencyKey = IdempotencyKeyHeaderSchema.parse(req.header('idempotency-key') ?? undefined);
 
       if (idempotencyKey && idempotency) {
         const begun = await idempotency.begin(userId, idempotencyKey);

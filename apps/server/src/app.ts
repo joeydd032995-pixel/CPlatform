@@ -33,17 +33,40 @@ export function buildApp(deps: AppDeps): Express {
   const app = express();
 
   app.use(helmet());
-  app.use(cors());
+  // No frontend origin exists yet (Milestone 5 hasn't started), so this
+  // stays open (reflects any origin) for now. An explicit allowlist should
+  // replace this once the frontend's real origin is known -- tracked as a
+  // known gap, not silently accepted.
+  app.use(
+    cors({
+      allowedHeaders: ['Content-Type', 'x-user-id', 'idempotency-key', 'x-jurisdiction'],
+    })
+  );
   app.use(express.json());
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp({
+      logger,
+      // x-user-id and idempotency-key are caller-controlled identifiers,
+      // not secrets, but there's no reason to let them accumulate in log
+      // storage verbatim either -- redact at the http-log layer the same
+      // way @cplatform/shared's logger redacts seed material elsewhere.
+      redact: {
+        paths: ['req.headers["x-user-id"]', 'req.headers["idempotency-key"]'],
+        censor: '[redacted]',
+      },
+    })
+  );
 
   app.get('/healthz', (_req, res) => {
     res.status(200).json({ status: 'ok' });
   });
 
   // Public, unauthenticated: anyone with a revealed seed can recompute and
-  // verify a bet's outcome. Mounted before auth on purpose.
-  app.use('/api/verify', createVerifyRouter());
+  // verify a bet's outcome. Mounted before auth on purpose, but still
+  // IP-rate-limited -- being unauthenticated is exactly why it needs its
+  // own throttle instead of relying on the per-user limiter below (which
+  // never applies here, since there's no req.userId yet).
+  app.use('/api/verify', perIpRateLimit(rateLimitStore, { windowSeconds: 10, max: 200 }), createVerifyRouter());
 
   app.use(authStub);
   app.use(devEnsureUser(ensureUser, env.NODE_ENV));

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { AppError } from '@cplatform/shared';
+import { AppError, logger } from '@cplatform/shared';
 
 // @cplatform/shared doesn't define a 429 error (rate limiting is an
 // apps/server concern, not a shared domain concept), so it's defined
@@ -15,10 +15,23 @@ export class RateLimitError extends AppError {
 
 // Narrow interface so this can be backed by a real ioredis client or an
 // in-memory fake in tests without depending on ioredis's full type surface.
+// `eval` (matching ioredis's built-in Redis#eval signature) rather than
+// separate incr/expire methods: a plain INCR-then-EXPIRE pair isn't atomic
+// -- a crash between the two calls leaves the key permanently un-expiring,
+// which would either lock a caller out forever (if it happened on the
+// first hit of a window) or let the counter never reset. A single Lua
+// script closes that gap the same way seedStore.ts's scripts do.
 export interface RateLimitCounter {
-  incr(key: string): Promise<number>;
-  expire(key: string, seconds: number): Promise<unknown>;
+  eval(script: string, numKeys: number, ...args: Array<string | number>): Promise<unknown>;
 }
+
+const INCR_WITH_EXPIRE_LUA = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`;
 
 export interface RateLimitOptions {
   windowSeconds: number;
@@ -47,18 +60,22 @@ export function createRateLimit(
     const key = `rl:${scope}:${id}:${window}`;
 
     counter
-      .incr(key)
-      .then(async (count) => {
-        if (count === 1) {
-          await counter.expire(key, windowSeconds);
-        }
-        if (count > max) {
+      .eval(INCR_WITH_EXPIRE_LUA, 1, key, windowSeconds)
+      .then((count) => {
+        if (Number(count) > max) {
           next(new RateLimitError());
           return;
         }
         next();
       })
-      .catch(next);
+      .catch((err) => {
+        // Rate limiting is a secondary protection, not core correctness --
+        // a transient Redis hiccup here should degrade gracefully (allow
+        // the request through) rather than turn into a full outage of the
+        // betting API for every gated route.
+        logger.warn({ err, scope, id }, 'Rate limit store error; failing open');
+        next();
+      });
   };
 }
 
