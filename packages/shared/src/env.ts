@@ -18,6 +18,14 @@ export const EnvSchema = z.object({
   // below rather than validated structurally here, since the game-name list
   // depends on packages/games (which packages/shared must not depend on).
   JURISDICTION_FLAGS: z.string().default('{}'),
+  // Comma-separated list of allowed CORS origins, e.g.
+  // 'https://app.example.com,https://staging.example.com'. Optional and
+  // left unparsed here (just a raw string) -- parseCorsOrigins below turns
+  // it into `string[] | undefined` the same way parseJurisdictionFlags
+  // turns JURISDICTION_FLAGS into a structured value, so apps/server can
+  // tell "not configured" (undefined -- preserve reflect-any-origin dev
+  // behavior) apart from "configured with an explicit allowlist".
+  CORS_ORIGIN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -59,6 +67,21 @@ export function parseJurisdictionFlags(raw: string): Record<string, string[]> {
     throw new Error('JURISDICTION_FLAGS must decode to an object of string arrays');
   }
   return result.data;
+}
+
+// Turns the raw comma-separated CORS_ORIGIN env value into an explicit
+// origin allowlist. Returns undefined when unset (or blank) so callers can
+// distinguish "no allowlist configured" from "configured with zero
+// origins" -- an empty array would silently reject every cross-origin
+// request, which is a very different, and much easier to misconfigure,
+// intent than "not configured yet".
+export function parseCorsOrigins(raw: string | undefined): string[] | undefined {
+  if (raw === undefined) return undefined;
+  const origins = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  return origins.length > 0 ? origins : undefined;
 }
 
 // Convenience for process entrypoints: parse process.env and exit(1) with a

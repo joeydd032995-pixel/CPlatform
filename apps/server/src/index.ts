@@ -1,10 +1,11 @@
-import { loadEnv, parseJurisdictionFlags, logger } from '@cplatform/shared';
+import { loadEnv, parseJurisdictionFlags, parseCorsOrigins, logger } from '@cplatform/shared';
 import { createRedisClient, RedisSeedStore } from './seedStore.js';
 import { RedisIdempotencyStore } from './idempotency.js';
 import { createSeedService } from './seedService.js';
 import { createGameService } from './gameService.js';
 import type { GameDb } from './gameService.js';
 import type { EnsureUser } from './middleware/auth.js';
+import type { UserDb } from './routes/me.js';
 import { buildApp } from './app.js';
 
 // This file is the only place in apps/server that touches real
@@ -67,6 +68,10 @@ async function main(): Promise<void> {
 
   const gameService = createGameService({ db, seedService, idempotency });
 
+  // Same structural-compatibility rationale as the `db`/`ensureUser` casts
+  // above: prisma.user.findUnique is a superset of UserDb's shape.
+  const userDb = prisma as unknown as UserDb;
+
   const app = buildApp({
     gameService,
     seedService,
@@ -74,7 +79,8 @@ async function main(): Promise<void> {
     rateLimitStore: redis,
     jurisdictionFlags,
     ensureUser,
-    env,
+    userDb,
+    env: { ...env, corsOrigins: parseCorsOrigins(env.CORS_ORIGIN) },
     logger,
   });
 
