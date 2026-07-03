@@ -16,6 +16,19 @@ import { buildApp } from './app.js';
 async function main(): Promise<void> {
   const env = loadEnv();
   const jurisdictionFlags = parseJurisdictionFlags(env.JURISDICTION_FLAGS);
+  const corsOrigins = parseCorsOrigins(env.CORS_ORIGIN);
+
+  // buildApp falls back to reflect-any-origin when no allowlist is
+  // configured — the right dev default, but a production deployment
+  // shipping that way is almost certainly a misconfiguration. Warn loudly
+  // at boot (rather than exit: auth is still a header stub and the whole
+  // deployment story is pre-launch, so a hard fail would be premature)
+  // so it's caught on day one instead of discovered in an audit.
+  if (env.NODE_ENV === 'production' && corsOrigins === undefined) {
+    logger.warn(
+      'CORS_ORIGIN is not set in production: the API will reflect ANY origin. Set CORS_ORIGIN to an explicit allowlist before exposing this deployment.'
+    );
+  }
 
   const redis = createRedisClient(env.REDIS_URL);
   const seedStore = new RedisSeedStore(redis);
@@ -80,7 +93,7 @@ async function main(): Promise<void> {
     jurisdictionFlags,
     ensureUser,
     userDb,
-    env: { ...env, corsOrigins: parseCorsOrigins(env.CORS_ORIGIN) },
+    env: { ...env, corsOrigins },
     logger,
   });
 
