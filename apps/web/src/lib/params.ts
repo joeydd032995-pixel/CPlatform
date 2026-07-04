@@ -241,5 +241,89 @@ export const rouletteDefaults: RouletteParams = {
   numbers: [],
 };
 
+// --- keno (packages/games/src/keno.ts) -------------------------------------
+export const KENO_GAME_TILES_COUNT = 40;
+export const KENO_GAME_TILES_HIT_COUNT = 10;
+
+export const KenoParamsSchema = z.object({
+  risk: z.enum(['classic', 'low', 'medium', 'high']),
+  picks: z
+    .array(z.number().int().min(1).max(KENO_GAME_TILES_COUNT))
+    .min(1)
+    .max(KENO_GAME_TILES_HIT_COUNT)
+    .refine((picks) => new Set(picks).size === picks.length, {
+      message: 'picks must be unique',
+    }),
+});
+
+export type KenoParams = z.infer<typeof KenoParamsSchema>;
+
+export const kenoDefaults: KenoParams = {
+  risk: 'classic',
+  picks: [4, 10, 17, 23, 31],
+};
+
+// --- chicken (packages/games/src/chicken.ts) -------------------------------
+export const CHICKEN_LANES_COUNT = 20;
+
+export const CHICKEN_DIFFICULTY_TO_SLICE: Record<
+  'easy' | 'medium' | 'hard' | 'expert',
+  number
+> = {
+  easy: 1,
+  medium: 3,
+  hard: 5,
+  expert: 10,
+};
+
+export const ChickenParamsSchema = z
+  .object({
+    difficulty: z.enum(['easy', 'medium', 'hard', 'expert']),
+    lanes: z.number().int().min(1),
+  })
+  .refine(
+    (p) => p.lanes <= CHICKEN_LANES_COUNT - CHICKEN_DIFFICULTY_TO_SLICE[p.difficulty],
+    { message: 'lanes exceeds the maximum allowed for this difficulty' }
+  );
+
+export type ChickenParams = z.infer<typeof ChickenParamsSchema>;
+
+export const chickenDefaults: ChickenParams = { difficulty: 'easy', lanes: 3 };
+
+// --- darts (packages/games/src/darts.ts) -----------------------------------
+export const DartsParamsSchema = z.object({}).strict();
+
+export type DartsParams = z.infer<typeof DartsParamsSchema>;
+
+export const dartsDefaults: DartsParams = {};
+
+// --- hilo (packages/games/src/hilo.ts) -------------------------------------
+export const HiLoGuessSchema = z.enum(['higher', 'lower', 'equal']);
+
+export const HiLoParamsSchema = z.object({
+  guesses: z.array(HiLoGuessSchema).min(1).max(51),
+});
+
+export type HiLoGuess = z.infer<typeof HiLoGuessSchema>;
+export type HiLoParams = z.infer<typeof HiLoParamsSchema>;
+
+export const hiloDefaults: HiLoParams = { guesses: ['higher'] };
+
+// --- blackjack (packages/games/src/blackjack.ts) ---------------------------
+export const BlackjackParamsSchema = z.object({}).strict();
+
+export type BlackjackParams = z.infer<typeof BlackjackParamsSchema>;
+
+export const blackjackDefaults: BlackjackParams = {};
+
 // --- registry-friendly union ------------------------------------------------
-export type GameName = 'mines' | 'plinko' | 'dice' | 'roulette';
+export type GameName =
+  | 'mines'
+  | 'plinko'
+  | 'dice'
+  | 'roulette'
+  | 'keno'
+  | 'chicken'
+  | 'darts'
+  | 'hilo'
+  | 'blackjack';
