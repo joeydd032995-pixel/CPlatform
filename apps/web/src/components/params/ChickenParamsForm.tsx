@@ -7,6 +7,29 @@ import { ModeTabs } from '@/components/games/GameShell';
 
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'expert'] as const;
 
+// Purely decorative pre-bet preview -- the lane track at rest, no death
+// point revealed and no lanes advanced yet (that's only known once a bet
+// is placed).
+function IdleLanes({ lanes }: { lanes: number }) {
+  const allLanes = Array.from({ length: CHICKEN_LANES_COUNT }, (_, index) => index + 1);
+  return (
+    <div className="flex flex-wrap gap-1.5" aria-hidden="true">
+      {allLanes.map((lane) => (
+        <div
+          key={lane}
+          className={`flex h-10 w-10 items-center justify-center rounded border text-xs font-bold ${
+            lane <= lanes
+              ? 'border-border bg-card text-muted-foreground'
+              : 'border-border/50 bg-card/50 text-muted-foreground/30'
+          }`}
+        >
+          {lane}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ChickenParamsForm({
   value,
   onChange,
@@ -37,6 +60,7 @@ export function ChickenParamsForm({
           onValueChange={(vals) => onChange({ ...value, lanes: vals[0] ?? value.lanes })}
         />
       </div>
+      <IdleLanes lanes={value.lanes} />
     </div>
   );
 }

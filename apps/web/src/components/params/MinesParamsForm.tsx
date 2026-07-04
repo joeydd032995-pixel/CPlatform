@@ -6,6 +6,30 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// Purely decorative pre-bet preview -- an at-rest 5x5 grid with nothing
+// revealed yet (there's no real board state before a bet is placed; the
+// backend is one-shot, not round-based). Gives the page something to show
+// besides bare form controls while configuring a bet.
+function IdleGrid() {
+  const tiles = Array.from({ length: MINES_GAME_TILES_COUNT }, (_, index) => index);
+  return (
+    <div
+      className="grid gap-1.5"
+      style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}
+      aria-hidden="true"
+    >
+      {tiles.map((tile) => (
+        <div
+          key={tile}
+          className="flex aspect-square items-center justify-center rounded border border-border bg-card text-muted-foreground/40"
+        >
+          ?
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function MinesParamsForm({
   value,
   onChange,
@@ -49,6 +73,7 @@ export function MinesParamsForm({
           }
         />
       </div>
+      <IdleGrid />
     </div>
   );
 }

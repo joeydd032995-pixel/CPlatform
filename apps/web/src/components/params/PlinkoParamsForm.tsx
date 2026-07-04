@@ -6,6 +6,22 @@ import { ModeTabs } from '@/components/games/GameShell';
 
 const RISKS = ['low', 'medium', 'high'] as const;
 
+// Purely decorative pre-bet preview -- the peg pyramid at rest, no ball
+// dropped yet (a real drop only happens once a bet is placed).
+function IdlePyramid({ rows }: { rows: number }) {
+  return (
+    <div className="flex flex-col gap-2" aria-hidden="true">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex justify-center gap-6">
+          {Array.from({ length: r + 3 }).map((_, c) => (
+            <span key={c} className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PlinkoParamsForm({
   value,
   onChange,
@@ -38,6 +54,7 @@ export function PlinkoParamsForm({
           onChange={(risk) => onChange({ ...value, risk })}
         />
       </div>
+      <IdlePyramid rows={value.rows} />
     </div>
   );
 }
