@@ -75,6 +75,12 @@ services:
       # Next.js bakes rewrites() into the build output at `next build` time
       # (see apps/web/Dockerfile), so setting it only at container runtime
       # has no effect. This value matches the `api` service name above.
+      #
+      # Because it's build-time, changing it (or pulling a change to it)
+      # does NOT take effect on a plain `docker compose up` -- Compose
+      # reuses the existing local image if one is present. Run
+      # `docker compose up --build` (or `docker compose build web`)
+      # whenever this value or apps/web/Dockerfile changes.
       args:
         API_PROXY_URL: http://api:4000
     depends_on:
