@@ -15,6 +15,8 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { createGamesRouter } from './routes/games.js';
 import { createSeedsRouter } from './routes/seeds.js';
 import { createVerifyRouter } from './routes/verify.js';
+import { createMeRouter } from './routes/me.js';
+import type { UserDb } from './routes/me.js';
 
 export interface AppDeps {
   gameService: ReturnType<typeof createGameService>;
@@ -23,22 +25,32 @@ export interface AppDeps {
   rateLimitStore: RateLimitCounter;
   jurisdictionFlags: Record<string, string[]>;
   ensureUser: EnsureUser;
-  env: { NODE_ENV: string };
+  userDb: UserDb;
+  // corsOrigins is undefined when CORS_ORIGIN isn't set in the environment
+  // (see packages/shared/src/env.ts's parseCorsOrigins) -- that preserves
+  // the previous reflect-any-origin dev behavior. Once set, it's an
+  // explicit allowlist and anything not in it gets no ACAO header at all.
+  env: { NODE_ENV: string; corsOrigins?: string[] };
   logger: Logger;
 }
 
 export function buildApp(deps: AppDeps): Express {
-  const { gameService, seedService, idempotency, rateLimitStore, jurisdictionFlags, ensureUser, env, logger } = deps;
+  const { gameService, seedService, idempotency, rateLimitStore, jurisdictionFlags, ensureUser, userDb, env, logger } =
+    deps;
 
   const app = express();
 
   app.use(helmet());
-  // No frontend origin exists yet (Milestone 5 hasn't started), so this
-  // stays open (reflects any origin) for now. An explicit allowlist should
-  // replace this once the frontend's real origin is known -- tracked as a
-  // known gap, not silently accepted.
+  // Milestone 5: the frontend's real origin(s) are now configurable via the
+  // CORS_ORIGIN env var (comma-separated, parsed by
+  // packages/shared/src/env.ts's parseCorsOrigins). When it's unset,
+  // `corsOrigins` is undefined and this falls back to `origin: true`, which
+  // is the same reflect-any-origin dev behavior as before -- still a known
+  // gap for any deployment that hasn't set CORS_ORIGIN yet, but no longer
+  // the only option.
   app.use(
     cors({
+      origin: env.corsOrigins ?? true,
       allowedHeaders: ['Content-Type', 'x-user-id', 'idempotency-key', 'x-jurisdiction'],
     })
   );
@@ -78,6 +90,7 @@ export function buildApp(deps: AppDeps): Express {
     createGamesRouter({ gameService, jurisdictionGate: createJurisdictionGate(jurisdictionFlags) })
   );
   app.use('/api/seeds', createSeedsRouter({ seedService, idempotency }));
+  app.use('/api/me', createMeRouter({ userDb }));
 
   app.use(errorHandler);
 

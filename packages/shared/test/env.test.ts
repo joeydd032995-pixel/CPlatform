@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEnv, parseJurisdictionFlags, EnvValidationError } from '../src/env.js';
+import { parseEnv, parseJurisdictionFlags, parseCorsOrigins, EnvValidationError } from '../src/env.js';
 
 const VALID_ENV = {
   NODE_ENV: 'test',
@@ -29,6 +29,16 @@ describe('parseEnv', () => {
     const env = parseEnv(rest);
     expect(env.RNG_VERSION).toBe('1.1');
     expect(env.JURISDICTION_FLAGS).toBe('{}');
+  });
+
+  it('leaves CORS_ORIGIN undefined when omitted', () => {
+    const env = parseEnv(VALID_ENV);
+    expect(env.CORS_ORIGIN).toBeUndefined();
+  });
+
+  it('accepts a CORS_ORIGIN string', () => {
+    const env = parseEnv({ ...VALID_ENV, CORS_ORIGIN: 'https://a.example.com,https://b.example.com' });
+    expect(env.CORS_ORIGIN).toBe('https://a.example.com,https://b.example.com');
   });
 
   it('rejects a missing DATABASE_URL', () => {
@@ -87,5 +97,31 @@ describe('parseJurisdictionFlags', () => {
 
   it('rejects a value array containing non-strings', () => {
     expect(() => parseJurisdictionFlags('{"us":[1,2]}')).toThrow();
+  });
+});
+
+describe('parseCorsOrigins', () => {
+  it('returns undefined when the raw value is undefined', () => {
+    expect(parseCorsOrigins(undefined)).toBeUndefined();
+  });
+
+  it('parses a single origin', () => {
+    expect(parseCorsOrigins('https://app.example.com')).toEqual(['https://app.example.com']);
+  });
+
+  it('parses multiple comma-separated origins and trims whitespace', () => {
+    expect(parseCorsOrigins('https://a.example.com, https://b.example.com ,https://c.example.com')).toEqual([
+      'https://a.example.com',
+      'https://b.example.com',
+      'https://c.example.com',
+    ]);
+  });
+
+  it('treats a blank string as unconfigured (undefined), not an empty allowlist', () => {
+    expect(parseCorsOrigins('')).toBeUndefined();
+  });
+
+  it('treats a comma-only string as unconfigured (undefined)', () => {
+    expect(parseCorsOrigins(' , , ')).toBeUndefined();
   });
 });

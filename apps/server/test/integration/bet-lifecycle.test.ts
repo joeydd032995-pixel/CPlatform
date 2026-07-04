@@ -22,7 +22,7 @@ describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
   let redisClient: import('ioredis').Redis;
 
   beforeAll(async () => {
-    const { loadEnv, parseJurisdictionFlags, logger } = await import('@cplatform/shared');
+    const { loadEnv, parseJurisdictionFlags, parseCorsOrigins, logger } = await import('@cplatform/shared');
     const { createRedisClient, RedisSeedStore } = await import('../../src/seedStore.js');
     const { RedisIdempotencyStore } = await import('../../src/idempotency.js');
     const { createSeedService } = await import('../../src/seedService.js');
@@ -56,6 +56,10 @@ describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
 
     const gameService = createGameService({ db, seedService, idempotency });
 
+    // Single, well-commented type assertion at the injection boundary --
+    // see src/index.ts for the identical rationale.
+    const userDb = dbModule.prisma as unknown as import('../../src/routes/me.js').UserDb;
+
     app = buildApp({
       gameService,
       seedService,
@@ -63,7 +67,8 @@ describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
       rateLimitStore: redis,
       jurisdictionFlags,
       ensureUser,
-      env,
+      userDb,
+      env: { ...env, corsOrigins: parseCorsOrigins(env.CORS_ORIGIN) },
       logger,
     });
 

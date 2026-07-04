@@ -2,6 +2,7 @@ import type { SeedFields, SeedStore, SeedTuple } from '../../src/seedStore.js';
 import type { IdempotencyStore, BeginResult } from '../../src/idempotency.js';
 import type { GameDb, GameTx, BetRecord } from '../../src/gameService.js';
 import type { EnsureUser } from '../../src/middleware/auth.js';
+import type { UserDb } from '../../src/routes/me.js';
 
 // Every method below mutates a plain in-process Map synchronously before
 // its first `await` (there isn't one) — since JS is single-threaded and
@@ -205,6 +206,20 @@ export function createFakeDb(): GameDb & { users: Map<string, FakeUser>; bets: B
   };
 
   return db;
+}
+
+// Backs GET /api/me with the same `users` map createFakeDb already
+// maintains, so a test can seed/mutate balances via one fake and read them
+// back through the route under test.
+export function createFakeUserDb(db: { users: Map<string, FakeUser> }): UserDb {
+  return {
+    user: {
+      async findUnique({ where }) {
+        const u = db.users.get(where.id);
+        return u ? { id: u.id, balance: u.balance } : null;
+      },
+    },
+  };
 }
 
 export function createFakeEnsureUser(db: { users: Map<string, FakeUser> }, startingBalance = 1000): EnsureUser {
