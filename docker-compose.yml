@@ -71,12 +71,23 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      # API_PROXY_URL MUST be a build arg, not a runtime `environment:` var:
+      # Next.js bakes rewrites() into the build output at `next build` time
+      # (see apps/web/Dockerfile), so setting it only at container runtime
+      # has no effect. This value matches the `api` service name above.
+      #
+      # Because it's build-time, changing it (or pulling a change to it)
+      # does NOT take effect on a plain `docker compose up` -- Compose
+      # reuses the existing local image if one is present. Run
+      # `docker compose up --build` (or `docker compose build web`)
+      # whenever this value or apps/web/Dockerfile changes.
+      args:
+        API_PROXY_URL: http://api:4000
     depends_on:
       api:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      API_PROXY_URL: http://api:4000
     ports:
       - '127.0.0.1:3000:3000'
 

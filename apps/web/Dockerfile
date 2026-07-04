@@ -3,7 +3,7 @@
 # Web image (@cplatform/web, Next.js 15). Built from the repo ROOT context
 # because it type-imports from the `@cplatform/games` workspace. No Prisma or
 # database access is needed to build or run the frontend — it talks to the
-# API only through Next's server-side rewrites proxy at runtime.
+# API only through Next's server-side rewrites proxy.
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -13,8 +13,16 @@ WORKDIR /app
 COPY . .
 RUN npm ci --include=dev
 
-# The API base URL is read at RUNTIME from API_PROXY_URL (see
-# apps/web/next.config.ts), so no API address is baked into the build.
+# IMPORTANT: next.config.ts's rewrites() reads API_PROXY_URL, but Next.js
+# resolves rewrites/redirects/headers ONCE at `next build` time and bakes the
+# result into .next/routes-manifest.json. Setting this as a docker-compose
+# `environment:` var (a runtime-only mechanism) has NO effect on an
+# already-built image -- it must be present at build time. Default matches
+# this repo's docker-compose.yml service name ("api"); override with
+# `docker build --build-arg API_PROXY_URL=...` for a different topology.
+ARG API_PROXY_URL=http://api:4000
+ENV API_PROXY_URL=$API_PROXY_URL
+
 RUN npm run --workspace @cplatform/web build
 
 ENV NODE_ENV=production
