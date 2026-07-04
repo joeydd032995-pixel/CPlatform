@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { createGameService } from '../src/gameService.js';
 import { createSeedService } from '../src/seedService.js';
-import { InsufficientBalanceError, UnknownGameError, IdempotencyConflictError } from '@cplatform/shared';
+import {
+  InsufficientBalanceError,
+  InvalidBetAmountError,
+  UnknownGameError,
+  IdempotencyConflictError,
+} from '@cplatform/shared';
 import {
   InMemorySeedStore,
   InMemoryIdempotencyStore,
@@ -27,13 +32,16 @@ const GAME_CASES: GameCase[] = [
   { game: 'blackjack', params: {} },
 ];
 
-function buildHarness(startingBalance = 1000) {
+function buildHarness(
+  startingBalance = 1000,
+  betLimits?: { min?: number; max?: number }
+) {
   const seedStore = new InMemorySeedStore();
   const seedService = createSeedService(seedStore);
   const idempotency = new InMemoryIdempotencyStore();
   const db = createFakeDb();
   const ensureUser = createFakeEnsureUser(db, startingBalance);
-  const gameService = createGameService({ db, seedService, idempotency });
+  const gameService = createGameService({ db, seedService, idempotency, betLimits });
   return { seedService, idempotency, db, ensureUser, gameService };
 }
 
@@ -163,6 +171,92 @@ describe('gameService.playGame', () => {
 
     const expectedBalance = 10000 - 20 * 10 + results.reduce((sum, r) => sum + r.payout, 0);
     expect(db.users.get(userId)!.balance).toBeCloseTo(expectedBalance, 6);
+  });
+
+  it('bet limits: unset limits preserve current behavior (large bet succeeds)', async () => {
+    const { db, ensureUser, gameService } = buildHarness(1_000_000);
+    const userId = 'user-no-limits';
+    await ensureUser.ensureUser(userId);
+
+    const result = await gameService.playGame({
+      userId,
+      betAmount: 500_000,
+      game: 'dice',
+      params: { target: 50, direction: 'under' },
+    });
+
+    expect(result.bet.game).toBe('dice');
+    expect(db.bets).toHaveLength(1);
+  });
+
+  it('bet limits: below min rejects with InvalidBetAmountError, burns no nonce, creates no bet row', async () => {
+    const { db, ensureUser, gameService } = buildHarness(1000, { min: 10, max: 100 });
+    const userId = 'user-below-min';
+    await ensureUser.ensureUser(userId);
+
+    await expect(
+      gameService.playGame({
+        userId,
+        betAmount: 5,
+        game: 'dice',
+        params: { target: 50, direction: 'under' },
+      })
+    ).rejects.toBeInstanceOf(InvalidBetAmountError);
+
+    expect(db.bets).toHaveLength(0);
+    expect(db.users.get(userId)!.balance).toBe(1000);
+
+    // No nonce burned on the rejected attempt: the next successful bet
+    // still gets nonce 0.
+    const second = await gameService.playGame({
+      userId,
+      betAmount: 20,
+      game: 'dice',
+      params: { target: 50, direction: 'under' },
+    });
+    expect(second.nonce).toBe(0);
+  });
+
+  it('bet limits: above max rejects with InvalidBetAmountError, burns no nonce, creates no bet row', async () => {
+    const { db, ensureUser, gameService } = buildHarness(1000, { min: 10, max: 100 });
+    const userId = 'user-above-max';
+    await ensureUser.ensureUser(userId);
+
+    await expect(
+      gameService.playGame({
+        userId,
+        betAmount: 200,
+        game: 'dice',
+        params: { target: 50, direction: 'under' },
+      })
+    ).rejects.toBeInstanceOf(InvalidBetAmountError);
+
+    expect(db.bets).toHaveLength(0);
+    expect(db.users.get(userId)!.balance).toBe(1000);
+
+    const second = await gameService.playGame({
+      userId,
+      betAmount: 20,
+      game: 'dice',
+      params: { target: 50, direction: 'under' },
+    });
+    expect(second.nonce).toBe(0);
+  });
+
+  it('bet limits: within limits succeeds', async () => {
+    const { db, ensureUser, gameService } = buildHarness(1000, { min: 10, max: 100 });
+    const userId = 'user-within-limits';
+    await ensureUser.ensureUser(userId);
+
+    const result = await gameService.playGame({
+      userId,
+      betAmount: 50,
+      game: 'dice',
+      params: { target: 50, direction: 'under' },
+    });
+
+    expect(result.bet.game).toBe('dice');
+    expect(db.bets).toHaveLength(1);
   });
 
   it('durable idempotency backstop: DB unique-constraint hit (no Redis layer) returns the existing bet', async () => {

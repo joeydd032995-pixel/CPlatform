@@ -3,6 +3,7 @@ import type { GameName } from '@cplatform/games';
 import type { GeneratorOptions } from '@cplatform/core-rng';
 import {
   InsufficientBalanceError,
+  InvalidBetAmountError,
   UnknownGameError,
   IdempotencyConflictError,
 } from '@cplatform/shared';
@@ -103,6 +104,10 @@ export interface GameServiceDeps {
   db: GameDb;
   seedService: SeedService;
   idempotency: IdempotencyStore | null;
+  // Optional, opt-in platform-wide bet-amount bounds (see
+  // packages/shared/src/env.ts MIN_BET_AMOUNT/MAX_BET_AMOUNT). Unset ⇒ no
+  // check, preserving today's behavior exactly.
+  betLimits?: { min?: number; max?: number };
 }
 
 const GAME_NAMES = Object.keys(GameDispatchTable) as GameName[];
@@ -124,7 +129,7 @@ function isUniqueConstraintViolation(err: unknown): boolean {
 }
 
 export function createGameService(deps: GameServiceDeps) {
-  const { db, seedService, idempotency } = deps;
+  const { db, seedService, idempotency, betLimits } = deps;
 
   async function playGame(options: PlayGameOptions): Promise<PlayGameResult> {
     const { userId, betAmount, game, params, idempotencyKey } = options;
@@ -146,6 +151,21 @@ export function createGameService(deps: GameServiceDeps) {
       throw new UnknownGameError(game);
     }
     const handler = GameDispatchTable[game];
+
+    // Step 2.5: enforce the optional platform-wide bet-amount bounds before
+    // any nonce is burned -- same rationale as the unknown-game and
+    // idempotency checks above. Unset bound(s) ⇒ no check (today's
+    // behavior, unchanged).
+    if (betLimits?.min != null && betAmount < betLimits.min) {
+      throw new InvalidBetAmountError(
+        `${betAmount} is below the minimum bet amount of ${betLimits.min}`
+      );
+    }
+    if (betLimits?.max != null && betAmount > betLimits.max) {
+      throw new InvalidBetAmountError(
+        `${betAmount} exceeds the maximum bet amount of ${betLimits.max}`
+      );
+    }
 
     // Step 3: reserve the nonce BEFORE opening the transaction. This is a
     // deliberate tradeoff: if the transaction below aborts (e.g.

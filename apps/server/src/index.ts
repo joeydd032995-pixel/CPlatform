@@ -20,13 +20,13 @@ async function main(): Promise<void> {
 
   // buildApp falls back to reflect-any-origin when no allowlist is
   // configured — the right dev default, but a production deployment
-  // shipping that way is almost certainly a misconfiguration. Warn loudly
-  // at boot (rather than exit: auth is still a header stub and the whole
-  // deployment story is pre-launch, so a hard fail would be premature)
-  // so it's caught on day one instead of discovered in an audit.
+  // shipping that way is a serious misconfiguration (reflects ANY origin,
+  // effectively disabling CORS protection). Fail fast at boot, before
+  // buildApp/listen, rather than just warning: a silently-misconfigured
+  // production deployment is worse than one that refuses to start.
   if (env.NODE_ENV === 'production' && corsOrigins === undefined) {
-    logger.warn(
-      'CORS_ORIGIN is not set in production: the API will reflect ANY origin. Set CORS_ORIGIN to an explicit allowlist before exposing this deployment.'
+    throw new Error(
+      'CORS_ORIGIN must be set in production. Refusing to start: without it, the API would reflect ANY origin. Set CORS_ORIGIN to an explicit comma-separated allowlist (e.g. "https://app.example.com").'
     );
   }
 
@@ -79,7 +79,12 @@ async function main(): Promise<void> {
     },
   };
 
-  const gameService = createGameService({ db, seedService, idempotency });
+  const gameService = createGameService({
+    db,
+    seedService,
+    idempotency,
+    betLimits: { min: env.MIN_BET_AMOUNT, max: env.MAX_BET_AMOUNT },
+  });
 
   // Same structural-compatibility rationale as the `db`/`ensureUser` casts
   // above: prisma.user.findUnique is a superset of UserDb's shape.

@@ -1,21 +1,39 @@
-// Generator + resolveHiLo ported from
+// Card-draw generator (`calculateHiloResults`) ported from
 // .claude/skills/game-logic-engineer/references/games/hilo.ts verbatim —
 // each card is drawn Math.floor(float * 52) INDEPENDENTLY WITH
 // REPLACEMENT from the full 52-card deck (no shrinking deck / shuffle).
 // Only the RNG import/naming has been fixed to match the real
-// @cplatform/core-rng package.
+// @cplatform/core-rng package. The generator is SACRED and unchanged by the
+// redesign below.
 //
 // Because each draw is independent from the full deck (the same card can
 // reappear), the denominator in resolveHiLo is a CONSTANT 52, not a
-// shrinking "remaining cards" count, and "equal" has 4 favorable outcomes
-// (all 4 suits of the same rank, including the exact card just drawn).
+// shrinking "remaining cards" count.
 //
-// Quirk (intentionally preserved, not "fixed"): guessing "higher" when the
-// current card is a King (rank 13) is a legal auto-loss — favorable =
-// (13-13)*4 = 0, so prob = 0 and the step multiplier is 0. Likewise
-// "lower" on an Ace (rank 1) is an auto-loss. These are real, valid bets
-// under a "blind strategy" UI that lets a player select higher/lower
-// before seeing whether it's even possible.
+// --- Fairness redesign: "higher-or-equal" (>=) / "lower-or-equal" (<=) ----
+//
+// INTENTIONAL DEVIATION from the reference `resolveHiLo` in
+// games/hilo.ts (Snippets.txt/nuts.gg), which modeled three STRICT guesses
+// {higher: (13-rank)*4, lower: (rank-1)*4, equal: 4} for a single-step UI.
+// That reference model has a real fairness bug once guesses are chained:
+// "higher" on a King (rank 13) has favorable = (13-13)*4 = 0 -- a legal but
+// probability-0 auto-loss (EV 0, not 0.99) -- and likewise "lower" on an
+// Ace. A multi-step chain that happens to land on a King/Ace mid-sequence
+// then loses far more of its EV than the flat 0.99^n a player would
+// reasonably expect, because it keeps hitting these impossible
+// intermediate states.
+//
+// The product owner's fix (after a fairness audit) replaces the three-way
+// {higher, lower, equal} model with the industry-standard two-way model:
+// `higher` means "higher OR equal" (>= current rank) and `lower` means
+// "lower OR equal" (<= current rank). Every rank then has favorable >= 4
+// (the current rank's own suits always count), so prob is always > 0 and
+// EVERY step -- for every rank, both guesses -- is exactly EV 0.99, with NO
+// exceptions. This is what makes an n-step chain of the same guess
+// telescope to exactly 0.99^n instead of collapsing on unlucky intermediate
+// cards. Under this model, an exact tie (drawing the same rank again) now
+// WINS for both directions -- a standard, expected consequence of the
+// >=/<= design (there is no longer a standalone "equal" guess).
 
 import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
@@ -43,7 +61,7 @@ export const calculateHiloResults = ({
 
 export const HILO_HOUSE_EDGE = 0.01;
 
-export type HiLoGuess = 'higher' | 'lower' | 'equal';
+export type HiLoGuess = 'higher' | 'lower';
 
 export const resolveHiLo = (
   currentCard: Card,
@@ -51,19 +69,23 @@ export const resolveHiLo = (
   remainingCards: number = 52
 ): number => {
   const rank = getCardRankValue(currentCard);
-  let favorable = 0;
-
-  if (guess === 'higher') favorable = (13 - rank) * 4;
-  else if (guess === 'lower') favorable = (rank - 1) * 4;
-  else if (guess === 'equal') favorable = 4; // Same rank, with replacement
+  // `higher` = "higher or equal" (>= current rank, including the current
+  // rank's other 3 suits); `lower` = "lower or equal" (<= current rank).
+  // Both always include the current rank itself, so favorable is always
+  // >= 4 -- no guess is ever impossible.
+  const favorable = guess === 'higher' ? (14 - rank) * 4 : rank * 4;
 
   const prob = favorable / remainingCards;
+  // `prob` is now ALWAYS > 0 (minimum 4/52, e.g. "higher" on a King or
+  // "lower" on an Ace), so the `prob > 0` branch below is unreachable in
+  // practice. Kept defensively (rather than dropped) in case a future
+  // caller passes a non-default `remainingCards` of 0 or a corrupted rank.
   return prob > 0 ? applyHouseEdge(1 / prob, HILO_HOUSE_EDGE) : 0;
 };
 
 // --- Params / resolve ------------------------------------------------------
 
-export const HiLoGuessSchema = z.enum(['higher', 'lower', 'equal']);
+export const HiLoGuessSchema = z.enum(['higher', 'lower']);
 
 export const HiLoParamsSchema = z.object({
   guesses: z.array(HiLoGuessSchema).min(1).max(51),
@@ -108,10 +130,9 @@ export function resolveHiLoGame(
     const previousRank = getCardRankValue(previousCard);
     const nextRank = getCardRankValue(nextCard);
 
-    let correct: boolean;
-    if (guess === 'higher') correct = nextRank > previousRank;
-    else if (guess === 'lower') correct = nextRank < previousRank;
-    else correct = nextRank === previousRank;
+    // `higher` wins on >= (an equal draw wins); `lower` wins on <=.
+    const correct =
+      guess === 'higher' ? nextRank >= previousRank : nextRank <= previousRank;
 
     steps.push({ guess, correct });
 

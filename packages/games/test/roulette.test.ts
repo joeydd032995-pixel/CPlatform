@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { expectedRTP } from '../src/house-edge.js';
 import {
   RouletteColor,
   rouletteResultToColor,
   resolveRoulette,
+  rouletteMultiplier,
+  RouletteBetTypeSchema,
+  type RouletteBetType,
 } from '../src/roulette.js';
 
 const BASE = {
@@ -133,7 +135,16 @@ describe('roulette distribution', () => {
 });
 
 describe('roulette RTP sanity', () => {
-  it('converges near expectedRTP(0.01) over many rounds for a red bet', () => {
+  // Roulette's authentic European single-zero RTP is 36/37 ~= 0.97297 --
+  // NOT the platform's usual 0.99 flat target. EUROPEAN_PAYOUTS already
+  // bakes in the real single-zero payout scheme (straight 36x on 1/37,
+  // red/black 2x on 18/37, etc.), so `rouletteMultiplier` does NOT layer
+  // an additional `applyHouseEdge` on top -- the ~2.7% edge comes
+  // structurally from the 37th (zero) pocket, on which every bet other
+  // than a 0-covering straight loses.
+  const EUROPEAN_RTP = 36 / 37;
+
+  it('converges near the authentic European RTP (36/37) over many rounds for a red bet', () => {
     const rounds = 40000;
     const betAmount = 100;
     let totalPayout = 0;
@@ -150,8 +161,48 @@ describe('roulette RTP sanity', () => {
     }
 
     const observedRTP = totalPayout / totalWagered;
-    const expected = expectedRTP(0.01) / 100;
-    expect(observedRTP).toBeGreaterThan(expected - 0.03);
-    expect(observedRTP).toBeLessThan(expected + 0.03);
+    expect(observedRTP).toBeGreaterThan(EUROPEAN_RTP - 0.02);
+    expect(observedRTP).toBeLessThan(EUROPEAN_RTP + 0.02);
+  });
+});
+
+describe('rouletteMultiplier', () => {
+  it('returns the real European single-zero payout directly (no additional house edge applied)', () => {
+    expect(rouletteMultiplier('straight')).toBe(36);
+    expect(rouletteMultiplier('split')).toBe(18);
+    expect(rouletteMultiplier('street')).toBe(12);
+    expect(rouletteMultiplier('corner')).toBe(9);
+    expect(rouletteMultiplier('six-line')).toBe(6);
+    expect(rouletteMultiplier('column')).toBe(3);
+    expect(rouletteMultiplier('dozen')).toBe(3);
+    expect(rouletteMultiplier('red')).toBe(2);
+    expect(rouletteMultiplier('black')).toBe(2);
+    expect(rouletteMultiplier('odd')).toBe(2);
+    expect(rouletteMultiplier('even')).toBe(2);
+    expect(rouletteMultiplier('high')).toBe(2);
+    expect(rouletteMultiplier('low')).toBe(2);
+  });
+
+  it('every bet type is exactly analytically fair at the authentic 36/37 European RTP: coverage * multiplier / 37 === 36/37', () => {
+    const coverage: Record<RouletteBetType, number> = {
+      straight: 1,
+      split: 2,
+      street: 3,
+      corner: 4,
+      'six-line': 6,
+      column: 12,
+      dozen: 12,
+      red: 18,
+      black: 18,
+      odd: 18,
+      even: 18,
+      high: 18,
+      low: 18,
+    };
+
+    for (const betType of RouletteBetTypeSchema.options) {
+      const ev = (coverage[betType] * rouletteMultiplier(betType)) / 37;
+      expect(ev).toBe(36 / 37);
+    }
   });
 });

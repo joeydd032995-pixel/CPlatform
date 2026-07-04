@@ -26,7 +26,27 @@ export const EnvSchema = z.object({
   // tell "not configured" (undefined -- preserve reflect-any-origin dev
   // behavior) apart from "configured with an explicit allowlist".
   CORS_ORIGIN: z.string().optional(),
-});
+  // Optional, opt-in platform-wide bet-amount bounds enforced in
+  // gameService.playGame (the single chokepoint all 9 games flow through).
+  // Unset (either or both) preserves today's behavior of no limit -- the
+  // actual bound *values* are a deferred product decision; this only adds
+  // the mechanism. Coerced from the env string to a positive number.
+  MIN_BET_AMOUNT: z.coerce.number().positive().optional(),
+  MAX_BET_AMOUNT: z.coerce.number().positive().optional(),
+})
+  // If both bounds are configured, min must not exceed max -- otherwise
+  // every bet would be rejected, which is almost certainly a
+  // misconfiguration rather than an intentional "reject everything".
+  .refine(
+    (env) =>
+      env.MIN_BET_AMOUNT === undefined ||
+      env.MAX_BET_AMOUNT === undefined ||
+      env.MIN_BET_AMOUNT <= env.MAX_BET_AMOUNT,
+    {
+      message: 'MIN_BET_AMOUNT must be less than or equal to MAX_BET_AMOUNT',
+      path: ['MIN_BET_AMOUNT'],
+    }
+  );
 
 export type Env = z.infer<typeof EnvSchema>;
 

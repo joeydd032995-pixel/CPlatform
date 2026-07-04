@@ -298,7 +298,7 @@ export type DartsParams = z.infer<typeof DartsParamsSchema>;
 export const dartsDefaults: DartsParams = {};
 
 // --- hilo (packages/games/src/hilo.ts) -------------------------------------
-export const HiLoGuessSchema = z.enum(['higher', 'lower', 'equal']);
+export const HiLoGuessSchema = z.enum(['higher', 'lower']);
 
 export const HiLoParamsSchema = z.object({
   guesses: z.array(HiLoGuessSchema).min(1).max(51),
