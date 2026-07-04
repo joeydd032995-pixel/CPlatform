@@ -6,7 +6,6 @@
 import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
 import { InvalidBetParamsError } from '@cplatform/shared';
-import { applyHouseEdge } from './house-edge.js';
 import { validateBetAmount } from './bet-amount.js';
 
 export enum RouletteColor {
@@ -71,9 +70,21 @@ export const RouletteBetTypeSchema = z.enum([
 
 export type RouletteBetType = z.infer<typeof RouletteBetTypeSchema>;
 
-// --- Fair payout table (before house edge) ---------------------------------
-
-const FAIR_PAYOUTS: Record<RouletteBetType, number> = {
+// --- European single-zero payout table (already the authentic house edge) --
+//
+// These are the REAL European (single-zero) total-return multipliers, not a
+// "pre-edge" figure to be discounted further. Each one already yields
+// EV = (coverage / 37) * payout = 36/37 ~= 0.97297 -- e.g. straight-up pays
+// 36x on a 1/37 chance, split pays 18x on a 2/37 chance, red/black pays 2x on
+// an 18/37 chance, etc. The house's ~2.7% edge comes STRUCTURALLY from the
+// 37th pocket (the single zero, on which every outside/inside bet other than
+// a 0-covering straight loses) -- it is not, and must not be, layered on top
+// via `applyHouseEdge` as well. Doing so previously double-counted the edge
+// (36/37 * 0.99 ~= 0.9632 instead of the authentic 36/37 ~= 0.97297) -- that
+// was the bug this table's naming/usage now fixes. Unlike every other game
+// on this platform, roulette therefore intentionally does NOT call
+// `applyHouseEdge` anywhere in its payout path.
+const EUROPEAN_PAYOUTS: Record<RouletteBetType, number> = {
   straight: 36,
   split: 18,
   street: 12,
@@ -90,7 +101,7 @@ const FAIR_PAYOUTS: Record<RouletteBetType, number> = {
 };
 
 export function rouletteMultiplier(betType: RouletteBetType): number {
-  return applyHouseEdge(FAIR_PAYOUTS[betType]);
+  return EUROPEAN_PAYOUTS[betType];
 }
 
 // --- Felt adjacency model ----------------------------------------------

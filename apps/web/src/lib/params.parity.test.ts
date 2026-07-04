@@ -159,11 +159,18 @@ describe('darts params parity', () => {
 describe('hilo params parity', () => {
   const fixtures: unknown[] = [
     { guesses: ['higher'] },
+    // valid multi-guess sequence mixing both directions
+    { guesses: ['higher', 'lower', 'higher', 'lower'] },
     { guesses: Array.from({ length: 51 }, () => 'higher') },
+    // 52 guesses exceeds the max of 51
     { guesses: Array.from({ length: 52 }, () => 'higher') },
+    // empty array is invalid (min 1)
     { guesses: [] },
     { guesses: ['sideways'] },
+    // 'equal' is no longer a valid guess -- higher/lower are now inclusive
+    // (>=/<=) so a standalone "equal" guess is redundant and rejected
     { guesses: ['higher', 'lower', 'equal'] },
+    { guesses: ['equal'] },
     {},
   ];
 

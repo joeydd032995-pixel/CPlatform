@@ -63,14 +63,55 @@ one float → `Math.floor(float * 52)` → card index, repeated up to 29 times
 skill carries the verbatim correct implementation. Do not "fix" it back to a
 shuffle-based approach.
 
-## Known open items (see the full project implementation plan for resolution)
+Scope of what's sacred: the **card-draw mechanic** above is verbatim and must not
+change. The **guess/payout semantics** on top of it are our own design and were
+deliberately revised during the M7 fairness pass — HiLo now uses a two-way
+"higher-or-equal" (≥) / "lower-or-equal" (≤) model (not the reference's strict
+three-way {higher, lower, equal}). That change is intentional: the reference's
+strict model made higher-on-King / lower-on-Ace probability-0 auto-losses, which
+compounded to a severe hidden edge on multi-step guesses; the ≥/≤ model keeps
+every step at exactly 0.99 EV so chains telescope to 0.99ⁿ. Do not revert HiLo's
+guess semantics to the reference's strict three-way version.
 
-- Reconcile the Zod-validated `RNGOptions` envelope (with `version`) used at the
-  API boundary against the plain `{serverSeed, clientSeed, nonce}` shape consumed
-  internally by game modules.
-- `gameService.ts`'s dispatch table currently only wires up `mines` — the other
-  8 games, and their payout/multiplier formulas, still need to be added.
-- Roulette's red/black range mapping needs verification against the real
-  European wheel layout during the testing phase.
-- API framework choice (Express vs. Fastify vs. NestJS) is inconsistent across
-  docs; `package.json` currently only depends on `express`.
+## House-edge conventions (design decisions to preserve)
+
+All games target a uniform **1% house edge** (`applyHouseEdge`, RTP 0.99) with two
+deliberate, documented exceptions — do not "normalize" these back to 0.99:
+
+- **Roulette ≈ 2.7% edge (RTP 36/37 ≈ 0.973).** The single-zero (37-pocket) wheel
+  provides the edge structurally, so roulette pays the real European multipliers
+  (`EUROPEAN_PAYOUTS`) **without** an additional `applyHouseEdge` — layering the 1%
+  on top double-counted the edge (the M7 bug fix).
+- **Blackjack ≈ 0.9723 RTP.** Rule- and basic-strategy-determined, not a free
+  parameter; pinned as a regression constant in its tests.
+
+## Known open items / deferred pre-launch hardening
+
+Resolved since early docs (no longer open): the RNGOptions envelope↔internal-shape
+reconciliation (M1/M4), the full 9-game dispatch table + payout formulas (M3/M6),
+roulette wheel/edge verification (M6/M7), and the API framework choice (Express, M4).
+
+Deferred, tracked (from the M7 security & fairness audit):
+
+- **Money is computed in IEEE-754 floats before hitting `Decimal(18,8)`** (every
+  game's `payout = betAmount * multiplier`, `applyHouseEdge`, and the `Number()`
+  casts on the idempotency-replay path). Real correctness/audit-integrity risk for
+  a provably-fair platform, but not an exploitable vuln today. Fix before real
+  money: move money math to a fixed-point/decimal representation (integer
+  minor-units or `decimal.js`) and quantize to 8dp before every persist; stop
+  reading `Number(existing.payout)` back into further arithmetic. Touches every
+  `resolve()` return, `gameService.ts`'s transaction, and the Prisma read paths.
+- **Platform bet-limit *values*.** The enforcement mechanism exists (opt-in
+  `MIN_BET_AMOUNT`/`MAX_BET_AMOUNT` env, enforced in `gameService.playGame`); choosing
+  actual per-game/jurisdiction limits is a product/compliance decision.
+- **Auth and jurisdiction are unauthenticated header stubs** (`x-user-id`,
+  `x-jurisdiction`). Every other control (balance ownership, rate limiting,
+  jurisdiction gating) rests on them, so replacing them with real session identity +
+  geo/KYC is the top infrastructural pre-launch blocker (Milestone 9 / payments).
+- **No responsible-gaming / RTP-disclosure surface** in the frontend (no per-game
+  RTP page, session/reality-check limits, or player-facing jurisdiction messaging).
+  Product/compliance scope. Note the non-obvious multi-step odds worth disclosing
+  (e.g. chained HiLo guesses telescope to 0.99ⁿ — a large effective edge on long
+  streaks even though each step is fair).
+- **Require `CORS_ORIGIN` in production** is now enforced (boot fails fast); revisit
+  if a deployment needs a different origin policy.

@@ -71,6 +71,42 @@ describe('parseEnv', () => {
   });
 });
 
+describe('bet amount limits', () => {
+  it('leaves MIN_BET_AMOUNT and MAX_BET_AMOUNT undefined when both omitted', () => {
+    const env = parseEnv(VALID_ENV);
+    expect(env.MIN_BET_AMOUNT).toBeUndefined();
+    expect(env.MAX_BET_AMOUNT).toBeUndefined();
+  });
+
+  it('accepts only MIN_BET_AMOUNT set', () => {
+    const env = parseEnv({ ...VALID_ENV, MIN_BET_AMOUNT: '1' });
+    expect(env.MIN_BET_AMOUNT).toBe(1);
+    expect(env.MAX_BET_AMOUNT).toBeUndefined();
+  });
+
+  it('accepts only MAX_BET_AMOUNT set', () => {
+    const env = parseEnv({ ...VALID_ENV, MAX_BET_AMOUNT: '1000' });
+    expect(env.MAX_BET_AMOUNT).toBe(1000);
+    expect(env.MIN_BET_AMOUNT).toBeUndefined();
+  });
+
+  it('accepts both set with MIN_BET_AMOUNT <= MAX_BET_AMOUNT', () => {
+    const env = parseEnv({ ...VALID_ENV, MIN_BET_AMOUNT: '1', MAX_BET_AMOUNT: '1000' });
+    expect(env.MIN_BET_AMOUNT).toBe(1);
+    expect(env.MAX_BET_AMOUNT).toBe(1000);
+  });
+
+  it('rejects MIN_BET_AMOUNT > MAX_BET_AMOUNT', () => {
+    expect(() =>
+      parseEnv({ ...VALID_ENV, MIN_BET_AMOUNT: '1000', MAX_BET_AMOUNT: '1' })
+    ).toThrow(EnvValidationError);
+  });
+
+  it('rejects a non-positive MIN_BET_AMOUNT', () => {
+    expect(() => parseEnv({ ...VALID_ENV, MIN_BET_AMOUNT: '0' })).toThrow(EnvValidationError);
+  });
+});
+
 describe('parseJurisdictionFlags', () => {
   it('parses a valid JSON object', () => {
     expect(parseJurisdictionFlags('{"us":["mines"],"eu":["all"]}')).toEqual({

@@ -2,8 +2,15 @@
 
 import type { HiLoGuess, HiLoParams } from '@/lib/params';
 
-const GUESSES: HiLoGuess[] = ['higher', 'lower', 'equal'];
+const GUESSES: HiLoGuess[] = ['higher', 'lower'];
 const MAX_GUESSES = 51;
+
+// `higher` means "higher or equal" (>= current rank) and `lower` means
+// "lower or equal" (<= current rank) -- an exact tie wins both directions.
+const GUESS_LABELS: Record<HiLoGuess, string> = {
+  higher: 'Higher or equal (≥)',
+  lower: 'Lower or equal (≤)',
+};
 
 export function HiLoParamsForm({
   value,
@@ -34,9 +41,9 @@ export function HiLoParamsForm({
             type="button"
             onClick={() => removeGuess(index)}
             title="Remove"
-            className="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs capitalize text-slate-200 hover:bg-red-900/40 hover:border-red-700"
+            className="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-red-900/40 hover:border-red-700"
           >
-            {index + 1}. {guess} ×
+            {index + 1}. {GUESS_LABELS[guess]} ×
           </button>
         ))}
         {value.guesses.length === 0 && (
@@ -51,9 +58,9 @@ export function HiLoParamsForm({
             type="button"
             disabled={value.guesses.length >= MAX_GUESSES}
             onClick={() => addGuess(guess)}
-            className="flex-1 rounded border border-slate-700 bg-slate-900 p-2 text-sm capitalize text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 rounded border border-slate-700 bg-slate-900 p-2 text-sm text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            + {guess}
+            + {GUESS_LABELS[guess]}
           </button>
         ))}
       </div>

@@ -1,7 +1,15 @@
 import type { HiLoOutcome, Card } from '@/lib/types';
-import type { HiLoParams } from '@/lib/params';
+import type { HiLoGuess, HiLoParams } from '@/lib/params';
 
 const RED_SUITS = new Set(['♦', '♥']);
+
+// `higher` = "higher or equal" (>= current rank); `lower` = "lower or equal"
+// (<= current rank). A tied redraw wins both directions -- there is no
+// standalone "equal" guess.
+const GUESS_SYMBOLS: Record<HiLoGuess, string> = {
+  higher: '≥ Higher or equal',
+  lower: '≤ Lower or equal',
+};
 
 function suitOf(card: Card): string {
   return card.charAt(0);
@@ -40,13 +48,13 @@ export function HiLoCards({ outcome }: { outcome: HiLoOutcome; params?: HiLoPara
               {step && (
                 <span
                   data-testid={`hilo-step-${index - 1}`}
-                  className={`rounded px-2 py-0.5 text-xs font-semibold capitalize ${
+                  className={`rounded px-2 py-0.5 text-xs font-semibold ${
                     step.correct
                       ? 'bg-emerald-900/60 text-emerald-300'
                       : 'bg-red-900/60 text-red-300'
                   }`}
                 >
-                  {step.guess} {step.correct ? '✓' : '✗'}
+                  {GUESS_SYMBOLS[step.guess]} {step.correct ? '✓' : '✗'}
                 </span>
               )}
             </div>
