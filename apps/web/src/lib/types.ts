@@ -10,11 +10,37 @@ import type {
   PlinkoOutcome,
   DiceOutcome,
   RouletteOutcome,
+  KenoOutcome,
+  ChickenOutcome,
+  DartsOutcome,
+  HiLoOutcome,
+  BlackjackOutcome,
+  Card,
 } from '@cplatform/games';
 
-export type { MinesOutcome, PlinkoOutcome, DiceOutcome, RouletteOutcome };
+export type {
+  MinesOutcome,
+  PlinkoOutcome,
+  DiceOutcome,
+  RouletteOutcome,
+  KenoOutcome,
+  ChickenOutcome,
+  DartsOutcome,
+  HiLoOutcome,
+  BlackjackOutcome,
+  Card,
+};
 
-export type GameOutcome = MinesOutcome | PlinkoOutcome | DiceOutcome | RouletteOutcome;
+export type GameOutcome =
+  | MinesOutcome
+  | PlinkoOutcome
+  | DiceOutcome
+  | RouletteOutcome
+  | KenoOutcome
+  | ChickenOutcome
+  | DartsOutcome
+  | HiLoOutcome
+  | BlackjackOutcome;
 
 // Mirrors apps/server/src/gameService.ts's BetRecord. `betAmount`, `payout`,
 // and `multiplier` are typed `unknown` server-side (Prisma Decimal without a

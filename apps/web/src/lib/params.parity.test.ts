@@ -92,3 +92,94 @@ describe('roulette params parity', () => {
     expect(localResult).toBe(realResult);
   });
 });
+
+describe('keno params parity', () => {
+  const fixtures: unknown[] = [
+    { risk: 'classic', picks: [4, 10, 17, 23, 31] },
+    { risk: 'low', picks: [1] },
+    { risk: 'high', picks: Array.from({ length: 10 }, (_, i) => i + 1) },
+    // duplicate picks
+    { risk: 'classic', picks: [1, 1, 2] },
+    // 11 picks (exceeds max of 10)
+    { risk: 'classic', picks: Array.from({ length: 11 }, (_, i) => i + 1) },
+    // pick 0 (below min of 1)
+    { risk: 'classic', picks: [0, 1, 2] },
+    // pick 41 (above max of 40)
+    { risk: 'classic', picks: [41] },
+    { risk: 'medium', picks: [] },
+    { risk: 'nonsense', picks: [1] },
+    {},
+  ];
+
+  it.each(fixtures)('%j', (fixture) => {
+    const realResult = real.KenoParamsSchema.safeParse(fixture).success;
+    const localResult = local.KenoParamsSchema.safeParse(fixture).success;
+    expect(localResult).toBe(realResult);
+  });
+});
+
+describe('chicken params parity', () => {
+  const fixtures: unknown[] = [
+    { difficulty: 'easy', lanes: 3 },
+    // easy: max lanes = 20 - 1 = 19
+    { difficulty: 'easy', lanes: 19 },
+    { difficulty: 'easy', lanes: 20 },
+    // medium: max lanes = 20 - 3 = 17
+    { difficulty: 'medium', lanes: 17 },
+    { difficulty: 'medium', lanes: 18 },
+    // hard: max lanes = 20 - 5 = 15
+    { difficulty: 'hard', lanes: 15 },
+    { difficulty: 'hard', lanes: 16 },
+    // expert: max lanes = 20 - 10 = 10
+    { difficulty: 'expert', lanes: 10 },
+    { difficulty: 'expert', lanes: 11 },
+    { difficulty: 'easy', lanes: 0 },
+    { difficulty: 'easy', lanes: 1.5 },
+    { difficulty: 'unknown', lanes: 3 },
+    {},
+  ];
+
+  it.each(fixtures)('%j', (fixture) => {
+    const realResult = real.ChickenParamsSchema.safeParse(fixture).success;
+    const localResult = local.ChickenParamsSchema.safeParse(fixture).success;
+    expect(localResult).toBe(realResult);
+  });
+});
+
+describe('darts params parity', () => {
+  const fixtures: unknown[] = [{}, { extra: true }, { foo: 'bar' }];
+
+  it.each(fixtures)('%j', (fixture) => {
+    const realResult = real.DartsParamsSchema.safeParse(fixture).success;
+    const localResult = local.DartsParamsSchema.safeParse(fixture).success;
+    expect(localResult).toBe(realResult);
+  });
+});
+
+describe('hilo params parity', () => {
+  const fixtures: unknown[] = [
+    { guesses: ['higher'] },
+    { guesses: Array.from({ length: 51 }, () => 'higher') },
+    { guesses: Array.from({ length: 52 }, () => 'higher') },
+    { guesses: [] },
+    { guesses: ['sideways'] },
+    { guesses: ['higher', 'lower', 'equal'] },
+    {},
+  ];
+
+  it.each(fixtures)('%j', (fixture) => {
+    const realResult = real.HiLoParamsSchema.safeParse(fixture).success;
+    const localResult = local.HiLoParamsSchema.safeParse(fixture).success;
+    expect(localResult).toBe(realResult);
+  });
+});
+
+describe('blackjack params parity', () => {
+  const fixtures: unknown[] = [{}, { extra: true }, { foo: 'bar' }];
+
+  it.each(fixtures)('%j', (fixture) => {
+    const realResult = real.BlackjackParamsSchema.safeParse(fixture).success;
+    const localResult = local.BlackjackParamsSchema.safeParse(fixture).success;
+    expect(localResult).toBe(realResult);
+  });
+});
