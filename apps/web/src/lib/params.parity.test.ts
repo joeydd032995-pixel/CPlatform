@@ -66,23 +66,41 @@ describe('dice params parity', () => {
 
 describe('roulette params parity', () => {
   const fixtures: unknown[] = [
-    { betType: 'straight', numbers: [17] },
-    { betType: 'straight', numbers: [1, 2] },
-    { betType: 'split', numbers: [1, 2] },
-    { betType: 'split', numbers: [1, 36] },
-    { betType: 'street', numbers: [1, 2, 3] },
-    { betType: 'corner', numbers: [1, 2, 4, 5] },
-    { betType: 'six-line', numbers: [1, 2, 3, 4, 5, 6] },
-    { betType: 'column', numbers: [], zone: 0 },
-    { betType: 'column', numbers: [] },
-    { betType: 'dozen', numbers: [1], zone: 0 },
-    { betType: 'red', numbers: [] },
-    { betType: 'red', numbers: [1] },
-    { betType: 'black', numbers: [] },
-    { betType: 'odd', numbers: [] },
-    { betType: 'even', numbers: [] },
-    { betType: 'high', numbers: [] },
-    { betType: 'low', numbers: [] },
+    // single-bet arrays, one per betType (valid + invalid per-leg variants)
+    { bets: [{ betType: 'straight', numbers: [17], amount: 5 }] },
+    { bets: [{ betType: 'straight', numbers: [1, 2], amount: 5 }] },
+    { bets: [{ betType: 'split', numbers: [1, 2], amount: 5 }] },
+    { bets: [{ betType: 'split', numbers: [1, 36], amount: 5 }] },
+    { bets: [{ betType: 'street', numbers: [1, 2, 3], amount: 5 }] },
+    { bets: [{ betType: 'corner', numbers: [1, 2, 4, 5], amount: 5 }] },
+    { bets: [{ betType: 'six-line', numbers: [1, 2, 3, 4, 5, 6], amount: 5 }] },
+    { bets: [{ betType: 'column', numbers: [], zone: 0, amount: 5 }] },
+    { bets: [{ betType: 'column', numbers: [], amount: 5 }] },
+    { bets: [{ betType: 'dozen', numbers: [1], zone: 0, amount: 5 }] },
+    { bets: [{ betType: 'red', numbers: [], amount: 5 }] },
+    { bets: [{ betType: 'red', numbers: [1], amount: 5 }] },
+    { bets: [{ betType: 'black', numbers: [], amount: 5 }] },
+    { bets: [{ betType: 'odd', numbers: [], amount: 5 }] },
+    { bets: [{ betType: 'even', numbers: [], amount: 5 }] },
+    { bets: [{ betType: 'high', numbers: [], amount: 5 }] },
+    { bets: [{ betType: 'low', numbers: [], amount: 5 }] },
+    // per-leg amount validation
+    { bets: [{ betType: 'red', numbers: [], amount: 0 }] },
+    { bets: [{ betType: 'red', numbers: [], amount: -5 }] },
+    { bets: [{ betType: 'red', numbers: [] }] },
+    // multi-bet arrays (real multi-chip felt betting -- several concurrent
+    // simultaneous bets settled by one spin)
+    {
+      bets: [
+        { betType: 'straight', numbers: [17], amount: 2 },
+        { betType: 'red', numbers: [], amount: 5 },
+        { betType: 'dozen', numbers: [], zone: 1, amount: 3 },
+      ],
+    },
+    // empty bets array is invalid (min 1)
+    { bets: [] },
+    // exceeds max of 40 bets
+    { bets: Array.from({ length: 41 }, () => ({ betType: 'red', numbers: [], amount: 1 })) },
     {},
   ];
 

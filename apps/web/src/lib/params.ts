@@ -74,10 +74,14 @@ export type RouletteBetType = z.infer<typeof RouletteBetTypeSchema>;
 // Re-derived from the same 12x3 felt model as the server (row r, col c ->
 // number = r*3 + c + 1). Only the small adjacency tables actually needed
 // for client-side refinement are rebuilt here.
-const GRID_ROWS = 12;
-const GRID_COLS = 3;
+// Exported so RouletteParamsForm can position felt hit targets (inverting
+// numberAt to recover row/col) without re-deriving the coordinate model.
+export const ROULETTE_GRID_ROWS = 12;
+export const ROULETTE_GRID_COLS = 3;
+const GRID_ROWS = ROULETTE_GRID_ROWS;
+const GRID_COLS = ROULETTE_GRID_COLS;
 
-function numberAt(row: number, col: number): number {
+export function numberAt(row: number, col: number): number {
   return row * GRID_COLS + col + 1;
 }
 
@@ -148,11 +152,28 @@ const SIX_LINE_KEYS = new Set(ROULETTE_SIX_LINES.map(sortedKey));
 const CORNER_KEYS = new Set(ROULETTE_CORNERS.map(sortedKey));
 const SPLIT_KEYS = new Set(ROULETTE_SPLITS.map(sortedKey));
 
-export const RouletteParamsSchema = z
+// Real European wheel red numbers (fixed lookup fact, independent of the
+// row/col grid model above) -- mirrored client-side purely for felt/wheel
+// coloring. The server's copy (packages/games/src/roulette.ts) is
+// module-private and the actual source of truth for win determination;
+// this client copy is presentation-only.
+export const REAL_RED_NUMBERS = new Set([
+  1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36,
+]);
+
+// --- Multi-chip betting: a single spin/request carries an *array* of
+// individually-staked bets (real casino felt semantics -- several
+// simultaneous bets, one spin settles all of them). `RouletteSingleBetSchema`
+// is the per-bet shape (same superRefine adjacency validation as before,
+// plus its own `amount`); the top-level `RouletteParamsSchema` wraps an
+// array of those. Mirrors packages/games/src/roulette.ts exactly.
+
+export const RouletteSingleBetSchema = z
   .object({
     betType: RouletteBetTypeSchema,
     numbers: z.array(z.number().int().min(0).max(36)),
     zone: z.number().int().min(0).max(2).optional(),
+    amount: z.number().positive(),
   })
   .superRefine((p, ctx) => {
     switch (p.betType) {
@@ -234,12 +255,15 @@ export const RouletteParamsSchema = z
     }
   });
 
+export type RouletteSingleBet = z.infer<typeof RouletteSingleBetSchema>;
+
+export const RouletteParamsSchema = z.object({
+  bets: z.array(RouletteSingleBetSchema).min(1).max(40), // 40 = generous cap, defensive only
+});
+
 export type RouletteParams = z.infer<typeof RouletteParamsSchema>;
 
-export const rouletteDefaults: RouletteParams = {
-  betType: 'red',
-  numbers: [],
-};
+export const rouletteDefaults: RouletteParams = { bets: [] };
 
 // --- keno (packages/games/src/keno.ts) -------------------------------------
 export const KENO_GAME_TILES_COUNT = 40;

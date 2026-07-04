@@ -85,6 +85,12 @@ export type GameRegistryEntry<P, O> = {
   schema: ZodType<P>;
   ParamsForm: (props: ParamsFormProps<P>) => ReactElement;
   Viz: (props: VizProps<O, P>) => ReactElement;
+  // Optional: when a game's total stake is derived from its params rather
+  // than independently typed (e.g. Roulette's felt -- the stake is the sum
+  // of chips placed, not a free-typed number), this computes it. Absent for
+  // every other game (zero behavior change -- BetForm falls back to its
+  // normal free-typed BetInput when this is undefined).
+  deriveBetAmount?: (params: P) => number;
 };
 
 export type GamesRegistry = {
@@ -127,6 +133,7 @@ export const gamesRegistry: GamesRegistry = {
     schema: RouletteParamsSchema,
     ParamsForm: RouletteParamsForm,
     Viz: RouletteResult,
+    deriveBetAmount: (params) => params.bets.reduce((sum, bet) => sum + bet.amount, 0),
   },
   keno: {
     label: 'Keno',

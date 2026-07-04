@@ -104,7 +104,7 @@
      de-tinted to true grey. */
   --background: oklch(0.09 0 0);
   --foreground: oklch(0.96 0 0);
-  --card: oklch(0.14 0 0);
+  --card: oklch(0.18 0 0);
   --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.14 0 0);
   --popover-foreground: oklch(0.96 0 0);

@@ -36,12 +36,17 @@ export function BetForm({
   params,
   onResult,
   refreshBalance,
+  derivedBetAmount,
 }: {
   game: GameName;
   userId: string;
   params: unknown;
   onResult: (result: PlayGameResult) => void;
   refreshBalance: () => Promise<void>;
+  // When present (e.g. Roulette's felt), the bet amount is derived from
+  // params (sum of placed chips) rather than independently typed -- the
+  // free-typed BetInput is skipped entirely in favor of a read-only total.
+  derivedBetAmount?: number;
 }) {
   const [betAmountText, setBetAmountText] = useState('10');
   const [loading, setLoading] = useState(false);
@@ -51,7 +56,8 @@ export function BetForm({
   // flaky-network retry into a single bet.
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID());
 
-  const betAmount = Number(betAmountText);
+  const hasDerivedAmount = derivedBetAmount !== undefined;
+  const betAmount = hasDerivedAmount ? derivedBetAmount : Number(betAmountText);
   const betAmountResult = BetAmountSchema.safeParse(betAmount);
   const betAmountError = betAmountResult.success
     ? null
@@ -104,7 +110,17 @@ export function BetForm({
         <CardTitle>Place Bet</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <BetInput text={betAmountText} onTextChange={setBetAmountText} error={betAmountError} />
+        {hasDerivedAmount ? (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between rounded-lg bg-background px-3 py-2 text-sm ring-1 ring-border">
+              <span className="text-muted-foreground">Total stake</span>
+              <span className="font-mono font-semibold">{derivedBetAmount}</span>
+            </div>
+            {betAmountError && <span className="text-xs text-destructive">{betAmountError}</span>}
+          </div>
+        ) : (
+          <BetInput text={betAmountText} onTextChange={setBetAmountText} error={betAmountError} />
+        )}
 
         <PlayButton label="PLACE BET" onClick={handleBet} disabled={!canSubmit} loading={loading} />
 

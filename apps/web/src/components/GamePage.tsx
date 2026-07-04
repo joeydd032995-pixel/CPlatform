@@ -92,6 +92,7 @@ export function GamePage({ game }: { game: GameName }) {
           params={params}
           onResult={handleResult}
           refreshBalance={refreshBalance}
+          derivedBetAmount={entry.deriveBetAmount?.(params)}
         />
       )}
 
