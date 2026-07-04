@@ -40,7 +40,15 @@ export function buildApp(deps: AppDeps): Express {
 
   const app = express();
 
-  app.use(helmet());
+  // helmet's default export is a plain CJS `module.exports = helmet`
+  // function. Locally (and in CI) TypeScript's esModuleInterop correctly
+  // types `helmet` as that callable function, but Vercel's build-time
+  // type-check resolves the same import to the CJS module's namespace
+  // type instead (no call signatures) -- a resolution-mode discrepancy
+  // between environments, not a runtime difference; `helmet()` is called
+  // identically either way. Cast narrowly at the one call site rather than
+  // changing the import (which works correctly everywhere else).
+  app.use((helmet as unknown as () => express.RequestHandler)());
   // Milestone 5: the frontend's real origin(s) are now configurable via the
   // CORS_ORIGIN env var (comma-separated, parsed by
   // packages/shared/src/env.ts's parseCorsOrigins). When it's unset,
