@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect } from 'react';
 import type { BlackjackOutcome, Card } from '@/lib/types';
 import type { BlackjackParams } from '@/lib/params';
 import { cn } from '@/lib/utils';
@@ -56,10 +59,17 @@ const RESULT_CLASSES: Record<BlackjackOutcome['result'], string> = {
 
 export function BlackjackTable({
   outcome,
+  onRevealComplete,
 }: {
   outcome: BlackjackOutcome;
   params?: BlackjackParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
 }) {
+  useEffect(() => {
+    onRevealComplete?.();
+  }, [onRevealComplete]);
+
   return (
     <div className="flex h-full min-h-[380px] flex-col justify-between gap-4" data-testid="blackjack-table">
       <div className="flex flex-col items-end gap-1">

@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect } from 'react';
 import type { KenoOutcome } from '@/lib/types';
 import type { KenoParams } from '@/lib/params';
 import { KENO_GAME_TILES_COUNT } from '@/lib/params';
@@ -6,8 +9,23 @@ import { cn } from '@/lib/utils';
 const COLS = 8;
 
 // Single-reveal (per the task's guidance -- Keno's zip counterpart doesn't
-// imply a step-by-step narrative the way Mines/Chicken/HiLo do).
-export function KenoBoard({ outcome, params }: { outcome: KenoOutcome; params?: KenoParams }) {
+// imply a step-by-step narrative the way Mines/Chicken/HiLo do). Still calls
+// onRevealComplete immediately on mount, since GamePage's phase machine
+// gates ResultPanel on it regardless of whether a Viz actually stages.
+export function KenoBoard({
+  outcome,
+  params,
+  onRevealComplete,
+}: {
+  outcome: KenoOutcome;
+  params?: KenoParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
+}) {
+  useEffect(() => {
+    onRevealComplete?.();
+  }, [onRevealComplete]);
+
   const pickSet = new Set(params?.picks ?? []);
   const drawnSet = new Set(outcome.drawn);
   const hitSet = new Set(outcome.hits);

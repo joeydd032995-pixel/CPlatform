@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect } from 'react';
 import type { RouletteOutcome } from '@/lib/types';
 import type { RouletteParams } from '@/lib/params';
 import { Badge } from '@/components/ui/badge';
@@ -14,11 +17,18 @@ const COLOR_CLASSES: Record<string, string> = {
 export function RouletteResult({
   outcome,
   params,
+  onRevealComplete,
 }: {
   outcome: RouletteOutcome;
   params: RouletteParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
 }) {
   const { result, color, win } = outcome;
+
+  useEffect(() => {
+    onRevealComplete?.();
+  }, [onRevealComplete]);
 
   return (
     <div className="flex flex-col gap-3" data-testid="roulette-result">

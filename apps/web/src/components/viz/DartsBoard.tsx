@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect } from 'react';
 import type { DartsOutcome } from '@/lib/types';
 import type { DartsParams } from '@/lib/params';
 import { MultiplierChip } from '@/components/games/GameShell';
@@ -14,11 +17,23 @@ const ZONE_LEGEND: Array<{ name: DartsOutcome['zone']; multiplier: number }> = [
   { name: 'rim', multiplier: 0.1 },
 ];
 
-export function DartsBoard({ outcome }: { outcome: DartsOutcome; params?: DartsParams }) {
+export function DartsBoard({
+  outcome,
+  onRevealComplete,
+}: {
+  outcome: DartsOutcome;
+  params?: DartsParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
+}) {
   const { distance, rotation, zone } = outcome;
   const angleDeg = rotation * 360;
   // distance is in [0, 0.5) units where 0.5 maps to the board's outer rim.
   const radiusPct = Math.min(distance / 0.5, 1) * 45;
+
+  useEffect(() => {
+    onRevealComplete?.();
+  }, [onRevealComplete]);
 
   return (
     <div className="flex h-full min-h-[380px] flex-col items-center justify-center gap-4" data-testid="darts-board">

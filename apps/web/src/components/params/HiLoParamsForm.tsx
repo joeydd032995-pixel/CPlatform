@@ -41,8 +41,16 @@ export function HiLoParamsForm({
           <Badge
             key={`${guess}-${index}`}
             variant="secondary"
-            className="cursor-pointer hover:bg-red-900/40"
+            className="cursor-pointer hover:bg-red-900/40 focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => removeGuess(index)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                removeGuess(index);
+              }
+            }}
             title="Remove"
           >
             {index + 1}. {GUESS_LABELS[guess]} ×

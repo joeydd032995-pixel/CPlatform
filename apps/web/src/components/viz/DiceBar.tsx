@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect } from 'react';
 import type { DiceOutcome } from '@/lib/types';
 import type { DiceParams } from '@/lib/params';
 
@@ -5,8 +8,20 @@ import type { DiceParams } from '@/lib/params';
 // (big colored result number + history-style framing) to Dice's real
 // target/direction/roll mechanic -- there's no Dice equivalent in the zip.
 // Single-reveal (no natural staged narrative for a single roll).
-export function DiceBar({ outcome }: { outcome: DiceOutcome; params?: DiceParams }) {
+export function DiceBar({
+  outcome,
+  onRevealComplete,
+}: {
+  outcome: DiceOutcome;
+  params?: DiceParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
+}) {
   const { roll, target, direction, win } = outcome;
+
+  useEffect(() => {
+    onRevealComplete?.();
+  }, [onRevealComplete]);
 
   const winZoneStyle =
     direction === 'over'
