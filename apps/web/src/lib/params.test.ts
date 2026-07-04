@@ -74,46 +74,89 @@ describe('DiceParamsSchema', () => {
 });
 
 describe('RouletteParamsSchema', () => {
+  // Multi-chip betting: params is now `{ bets: [...] }`, an array of
+  // individually-staked bet legs (real casino felt semantics -- several
+  // simultaneous bets, one spin settles all of them).
   it('accepts a valid straight bet', () => {
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'straight', numbers: [17] }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'straight', numbers: [17], amount: 5 }],
+      }).success
     ).toBe(true);
   });
 
   it('rejects a straight bet with the wrong number count', () => {
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'straight', numbers: [1, 2] }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'straight', numbers: [1, 2], amount: 5 }],
+      }).success
     ).toBe(false);
   });
 
   it('rejects a split bet with non-adjacent numbers', () => {
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'split', numbers: [1, 36] }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'split', numbers: [1, 36], amount: 5 }],
+      }).success
     ).toBe(false);
   });
 
   it('accepts a split bet with adjacent felt numbers', () => {
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'split', numbers: [1, 2] }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'split', numbers: [1, 2], amount: 5 }],
+      }).success
     ).toBe(true);
   });
 
   it('requires a zone for column/dozen bets and rejects numbers', () => {
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'column', numbers: [] }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'column', numbers: [], amount: 5 }],
+      }).success
     ).toBe(false);
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'column', numbers: [], zone: 0 }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'column', numbers: [], zone: 0, amount: 5 }],
+      }).success
     ).toBe(true);
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'dozen', numbers: [1], zone: 0 }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'dozen', numbers: [1], zone: 0, amount: 5 }],
+      }).success
     ).toBe(false);
   });
 
   it('rejects numbers on simple outside bets', () => {
     expect(
-      RouletteParamsSchema.safeParse({ betType: 'red', numbers: [1] }).success
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'red', numbers: [1], amount: 5 }],
+      }).success
     ).toBe(false);
-    expect(RouletteParamsSchema.safeParse({ betType: 'red', numbers: [] }).success).toBe(true);
+    expect(
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'red', numbers: [], amount: 5 }],
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejects an empty bets array and requires a positive per-bet amount', () => {
+    expect(RouletteParamsSchema.safeParse({ bets: [] }).success).toBe(false);
+    expect(
+      RouletteParamsSchema.safeParse({
+        bets: [{ betType: 'red', numbers: [], amount: 0 }],
+      }).success
+    ).toBe(false);
+  });
+
+  it('accepts multiple concurrent bets in one request', () => {
+    expect(
+      RouletteParamsSchema.safeParse({
+        bets: [
+          { betType: 'straight', numbers: [17], amount: 2 },
+          { betType: 'red', numbers: [], amount: 5 },
+        ],
+      }).success
+    ).toBe(true);
   });
 });

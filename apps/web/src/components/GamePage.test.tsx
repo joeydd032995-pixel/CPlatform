@@ -44,7 +44,12 @@ vi.mock('@/lib/api-client', () => ({
         serverSeedHash: 'a'.repeat(64),
       },
       roulette: {
-        outcome: { result: 7, color: 'red', win: true },
+        outcome: {
+          result: 7,
+          color: 'red',
+          win: true,
+          bets: [{ betType: 'straight', numbers: [7], amount: 10, win: true, payout: 350 }],
+        },
         payout: 350,
         multiplier: 35,
         nonce: 1,
@@ -82,13 +87,29 @@ describe('GamePage reveal flow (previously-broken single-reveal games)', () => {
     async (game) => {
       render(<GamePage game={game} />);
 
+      if (game === 'roulette') {
+        // Unlike the other games here, Roulette's stake is derived from
+        // chips placed on the felt (defaults to an empty `bets: []`, so
+        // Play starts disabled) rather than an independently-typed
+        // BetForm amount -- place one chip first so the bet is valid.
+        const redBox = await screen.findByRole('button', { name: /red bet/i });
+        fireEvent.click(redBox);
+      }
+
       const button = await screen.findByRole('button', { name: /place bet/i });
       fireEvent.click(button);
 
+      // Roulette's RouletteWheel runs a genuine ~3.5s staged spin animation
+      // (see RouletteWheel.tsx) before calling onRevealComplete -- unlike
+      // every other single-reveal Viz here, which resolve synchronously.
+      // Give it a longer waitFor budget to avoid a false-negative timeout.
+      const timeout = game === 'roulette' ? 4500 : 2000;
+
       await waitFor(() => expect(screen.getByText('Result')).toBeInTheDocument(), {
-        timeout: 2000,
+        timeout,
       });
       expect(screen.getByText('Verify this bet')).toBeInTheDocument();
-    }
+    },
+    6000
   );
 });

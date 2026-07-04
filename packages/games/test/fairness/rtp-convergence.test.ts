@@ -96,7 +96,12 @@ const CASES: GameRTPCase[] = [
     rounds: 15000,
     tolerance: 0.05,
     targetRTP: 36 / 37, // authentic European single-zero RTP ~= 0.97297
-    run: (nonce, bet) => resolveRoulette({ ...BASE, nonce }, { betType: 'red', numbers: [] }, bet),
+    run: (nonce, bet) =>
+      resolveRoulette(
+        { ...BASE, nonce },
+        { bets: [{ betType: 'red', numbers: [], amount: bet }] },
+        bet
+      ),
   },
   {
     name: 'keno (classic risk, 3 picks)',

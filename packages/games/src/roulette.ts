@@ -199,12 +199,19 @@ const REAL_RED_NUMBERS = new Set([
 ]);
 
 // --- Params schema -----------------------------------------------------
+//
+// Multi-chip betting: a single spin/request now carries an *array* of
+// individually-staked bets (real casino felt semantics — several
+// simultaneous bets, one spin settles all of them). `RouletteSingleBetSchema`
+// is today's flat per-bet shape plus its own `amount`; the top-level
+// `RouletteParamsSchema` just wraps an array of those.
 
-export const RouletteParamsSchema = z
+export const RouletteSingleBetSchema = z
   .object({
     betType: RouletteBetTypeSchema,
     numbers: z.array(z.number().int().min(0).max(36)),
     zone: z.number().int().min(0).max(2).optional(),
+    amount: z.number().positive(),
   })
   .superRefine((p, ctx) => {
     switch (p.betType) {
@@ -291,11 +298,21 @@ export const RouletteParamsSchema = z
     }
   });
 
+export type RouletteSingleBet = z.infer<typeof RouletteSingleBetSchema>;
+
+export const RouletteParamsSchema = z.object({
+  bets: z.array(RouletteSingleBetSchema).min(1).max(40), // 40 = generous cap, defensive only
+});
+
 export type RouletteParams = z.infer<typeof RouletteParamsSchema>;
 
 // --- Win determination ---------------------------------------------------
+//
+// `isWin` only ever reads `betType`/`numbers`/`zone` off whatever object
+// it's given, so passing a `RouletteSingleBet` (which also carries `amount`)
+// works completely unchanged.
 
-function isWin(result: RouletteResult, params: RouletteParams): boolean {
+function isWin(result: RouletteResult, params: RouletteSingleBet): boolean {
   switch (params.betType) {
     case 'straight':
     case 'split':
@@ -325,10 +342,20 @@ function isWin(result: RouletteResult, params: RouletteParams): boolean {
   }
 }
 
+export type RouletteBetResult = {
+  betType: RouletteBetType;
+  numbers: number[];
+  zone?: number;
+  amount: number;
+  win: boolean;
+  payout: number;
+};
+
 export type RouletteOutcome = {
   result: RouletteResult;
   color: RouletteColor;
-  win: boolean;
+  win: boolean; // repurposed: true iff ANY bet won this spin
+  bets: RouletteBetResult[]; // per-bet breakdown, same order as the request
 };
 
 export function resolveRoulette(
@@ -339,17 +366,50 @@ export function resolveRoulette(
   const parsed = validateRouletteParams(params);
   validateBetAmount('roulette', betAmount);
 
+  // Reconciliation guard: `gameService.playGame` debits/credits strictly
+  // against this single top-level `betAmount` *before* `resolve()` runs, so
+  // a mismatched `bets[]` total would let a client under-declare the debit
+  // while over-declaring the payout stake. Reject before any spin happens.
+  const sumOfBets = parsed.bets.reduce((sum, bet) => sum + bet.amount, 0);
+  if (Math.abs(sumOfBets - betAmount) > 1e-9) {
+    throw new InvalidBetParamsError(
+      'roulette',
+      'sum of per-bet amounts must equal betAmount'
+    );
+  }
+
+  // Exactly one float draw / one physical spin settles every simultaneous
+  // bet in `parsed.bets`, no matter how many bets were placed — this is the
+  // whole point of multi-chip betting (one spin, many bets) and must not be
+  // turned into a per-bet draw loop.
   const result = calculateRouletteResult(generatorOpts);
   const color = rouletteResultToColor(result);
-  const win = isWin(result, parsed);
 
-  const multiplier = rouletteMultiplier(parsed.betType);
-  const payout = win ? betAmount * multiplier : 0;
+  const betResults: RouletteBetResult[] = parsed.bets.map((bet) => {
+    const win = isWin(result, bet);
+    const payout = win ? bet.amount * rouletteMultiplier(bet.betType) : 0;
+    return {
+      betType: bet.betType,
+      numbers: bet.numbers,
+      zone: bet.zone,
+      amount: bet.amount,
+      win,
+      payout,
+    };
+  });
+
+  const totalPayout = betResults.reduce((sum, b) => sum + b.payout, 0);
+  const overallWin = betResults.some((b) => b.win);
+
+  // Display-only stake ratio (totalPayout / totalStake) — NOT used in any
+  // further math; every bet's payout above is already fully computed
+  // per-bet. Do not mistake this for a single-bet-type multiplier lookup.
+  const multiplier = betAmount > 0 ? totalPayout / betAmount : 0;
 
   return {
-    outcome: { result, color, win },
+    outcome: { result, color, win: overallWin, bets: betResults },
     multiplier,
-    payout,
+    payout: totalPayout,
   };
 }
 
