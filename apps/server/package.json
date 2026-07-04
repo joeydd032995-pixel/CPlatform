@@ -9,7 +9,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "vercel-build": "npm --prefix ../../packages/db run prisma:generate"
   },
   "dependencies": {
     "@cplatform/core-rng": "*",
