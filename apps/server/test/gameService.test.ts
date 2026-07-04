@@ -24,7 +24,7 @@ const GAME_CASES: GameCase[] = [
   { game: 'mines', params: { mines: 3, picks: 2 } },
   { game: 'plinko', params: { rows: 16, risk: 'medium' } },
   { game: 'dice', params: { target: 50, direction: 'under' } },
-  { game: 'roulette', params: { betType: 'red', numbers: [] } },
+  { game: 'roulette', params: { bets: [{ betType: 'red', numbers: [], amount: 10 }] } },
   { game: 'keno', params: { risk: 'classic', picks: [1, 2, 3] } },
   { game: 'chicken', params: { difficulty: 'easy', lanes: 3 } },
   { game: 'darts', params: {} },
