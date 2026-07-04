@@ -7,6 +7,19 @@ import { Badge } from '@/components/ui/badge';
 const GUESSES: HiLoGuess[] = ['higher', 'lower'];
 const MAX_GUESSES = 51;
 
+// Purely decorative pre-bet preview -- a face-down card, since no card has
+// actually been drawn yet (that only happens once a bet is placed).
+function IdleCard() {
+  return (
+    <div
+      className="flex h-24 w-16 items-center justify-center rounded-md border bg-muted text-2xl text-muted-foreground/40"
+      aria-hidden="true"
+    >
+      ?
+    </div>
+  );
+}
+
 // `higher` means "higher or equal" (>= current rank) and `lower` means
 // "lower or equal" (<= current rank) -- an exact tie wins both directions.
 const GUESS_LABELS: Record<HiLoGuess, string> = {
@@ -32,6 +45,7 @@ export function HiLoParamsForm({
 
   return (
     <div className="flex flex-col gap-3">
+      <IdleCard />
       <div className="text-sm text-muted-foreground">
         Guess sequence ({value.guesses.length}/{MAX_GUESSES})
       </div>

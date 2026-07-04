@@ -6,6 +6,22 @@ import { ModeTabs } from '@/components/games/GameShell';
 
 const DIRECTIONS = ['over', 'under'] as const;
 
+// Purely decorative pre-bet preview -- shows the current win zone and
+// target marker, but no roll has happened yet.
+function IdleBar({ target, direction }: { target: number; direction: 'over' | 'under' }) {
+  const winZoneStyle =
+    direction === 'over'
+      ? { left: `${target}%`, width: `${100 - target}%` }
+      : { left: '0%', width: `${target}%` };
+
+  return (
+    <div className="relative h-6 w-full overflow-hidden rounded bg-muted" aria-hidden="true">
+      <div className="absolute inset-y-0 bg-emerald-700/30" style={winZoneStyle} />
+      <div className="absolute top-0 h-full w-0.5 bg-muted-foreground/50" style={{ left: `${target}%` }} />
+    </div>
+  );
+}
+
 export function DiceParamsForm({
   value,
   onChange,
@@ -38,6 +54,7 @@ export function DiceParamsForm({
           onChange={(direction) => onChange({ ...value, direction })}
         />
       </div>
+      <IdleBar target={value.target} direction={value.direction} />
     </div>
   );
 }
