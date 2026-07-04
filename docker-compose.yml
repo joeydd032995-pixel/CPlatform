@@ -25,5 +25,60 @@ services:
       timeout: 5s
       retries: 10
 
+  # Express API. On startup it applies pending Prisma migrations, then serves
+  # the provably-fair betting endpoints. NODE_ENV=development is deliberate:
+  # it enables the auth stub's auto-provisioning of a user with a starting
+  # balance (see apps/server/src/middleware/auth.ts), so the platform is
+  # immediately playable. This is a demo/dev config, not production-hardened.
+  api:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://cplatform:cplatform@db:5432/cplatform
+      REDIS_URL: redis://redis:6379
+      PORT: '4000'
+      # Dev-only placeholder (EnvSchema requires >= 32 chars). Replace with a
+      # real secret (`openssl rand -hex 32`) for anything beyond local use.
+      SESSION_SECRET: dev-only-insecure-session-secret-change-me-please
+      RNG_VERSION: '1.1'
+      JURISDICTION_FLAGS: '{}'
+    ports:
+      - '127.0.0.1:4000:4000'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:4000/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      # Allow time for `npm ci` cold caches, migration, and boot before the
+      # first healthcheck counts against the retry budget.
+      start_period: 40s
+
+  # Next.js frontend. The browser only ever talks to this origin; Next proxies
+  # /api/* to the API service server-side (see apps/web/next.config.ts), so no
+  # CORS is involved in the normal request path.
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PROXY_URL: http://api:4000
+    ports:
+      - '127.0.0.1:3000:3000'
+
 volumes:
   db-data:

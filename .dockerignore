@@ -1,0 +1,19 @@
+# Keep the build context small and — critically — prevent the host's
+# installed node_modules / build output from being copied into the image and
+# shadowing the fresh `npm ci` / `next build` that run inside it.
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+coverage
+**/coverage
+*.tsbuildinfo
+**/*.tsbuildinfo
+.git
+.gitignore
+*.log
+.env
+.env.local
+.DS_Store
