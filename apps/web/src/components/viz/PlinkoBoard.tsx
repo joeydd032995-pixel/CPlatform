@@ -1,95 +1,93 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import type { PlinkoOutcome } from '@/lib/types';
 import type { PlinkoParams } from '@/lib/params';
+import { MultiplierChip } from '@/components/games/GameShell';
 
-const WIDTH = 480;
-const HEIGHT_PER_ROW = 24;
-const TOP_MARGIN = 20;
-const BOTTOM_MARGIN = 40;
-const PEG_RADIUS = 3;
-const BALL_RADIUS = 5;
+const STEP_INTERVAL_MS = 220;
 
-// Static draw only (no animation): a peg triangle for `rows`, a polyline of
-// outcome.path's left/right descent, and a slot row with multiplierIndex
-// highlighted.
-export function PlinkoBoard({ outcome, params }: { outcome: PlinkoOutcome; params: PlinkoParams }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+// NOTE: this deliberately switches Plinko's board rendering from the
+// previous Canvas-based implementation to plain DOM/CSS, matching the
+// gameframe-studio-x reference's dot-pyramid visual. The underlying data
+// (outcome.path, a ('left'|'right')[] the server already fully computed)
+// is unchanged -- only the rendering technology moved from <canvas> to a
+// CSS grid of peg dots + an absolutely-positioned ball div.
+export function PlinkoBoard({
+  outcome,
+  params,
+  staged = false,
+  onRevealComplete,
+}: {
+  outcome: PlinkoOutcome;
+  params: PlinkoParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
+}) {
   const { rows } = params;
   const { path, multiplierIndex } = outcome;
 
+  const [step, setStep] = useState(staged ? 0 : path.length);
+
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const height = TOP_MARGIN + rows * HEIGHT_PER_ROW + BOTTOM_MARGIN;
-    canvas.width = WIDTH;
-    canvas.height = height;
-
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, WIDTH, height);
-
-    const centerX = WIDTH / 2;
-    const spacing = WIDTH / (rows + 4);
-
-    // Draw peg triangle: row r has r+1 pegs, centered.
-    ctx.fillStyle = '#475569';
-    for (let row = 0; row <= rows; row++) {
-      const pegCount = row + 1;
-      const y = TOP_MARGIN + row * HEIGHT_PER_ROW;
-      for (let i = 0; i < pegCount; i++) {
-        const x = centerX + (i - row / 2) * spacing;
-        ctx.beginPath();
-        ctx.arc(x, y, PEG_RADIUS, 0, Math.PI * 2);
-        ctx.fill();
+    if (!staged) {
+      setStep(path.length);
+      return;
+    }
+    setStep(0);
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 1;
+      setStep(i);
+      if (i >= path.length) {
+        clearInterval(timer);
+        onRevealComplete?.();
       }
-    }
+    }, STEP_INTERVAL_MS);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staged, path]);
 
-    // Draw the ball's descent polyline: at each row, position shifts by
-    // +/- half a peg spacing depending on left/right.
-    let x = centerX;
-    const points: Array<[number, number]> = [[x, TOP_MARGIN]];
-    path.forEach((move, index) => {
-      const y = TOP_MARGIN + (index + 1) * HEIGHT_PER_ROW;
-      x += move === 'right' ? spacing / 2 : -spacing / 2;
-      points.push([x, y]);
-    });
+  // Ball horizontal position (0-100%) after `step` moves, nudging by a
+  // shrinking amount per row so it stays roughly centered over the peg
+  // triangle, landing on the slot indicated by multiplierIndex.
+  let ballX = 50;
+  for (let i = 0; i < step; i++) {
+    const nudge = 50 / (rows + 2);
+    ballX += path[i] === 'right' ? nudge / 2 : -nudge / 2;
+  }
+  ballX = Math.min(96, Math.max(4, ballX));
+  const ballY = rows === 0 ? 0 : (step / rows) * 82;
 
-    ctx.strokeStyle = '#60a5fa';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    points.forEach(([px, py], index) => {
-      if (index === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    });
-    ctx.stroke();
-
-    const [finalX, finalY] = points[points.length - 1] ?? [centerX, TOP_MARGIN];
-    ctx.fillStyle = '#facc15';
-    ctx.beginPath();
-    ctx.arc(finalX, finalY, BALL_RADIUS, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Slot row: rows+1 slots along the bottom, multiplierIndex highlighted.
-    const slotCount = rows + 1;
-    const slotWidth = WIDTH / slotCount;
-    const slotY = height - BOTTOM_MARGIN + 8;
-    for (let i = 0; i < slotCount; i++) {
-      ctx.fillStyle = i === multiplierIndex ? '#16a34a' : '#1e293b';
-      ctx.fillRect(i * slotWidth, slotY, slotWidth - 2, BOTTOM_MARGIN - 12);
-      ctx.strokeStyle = '#334155';
-      ctx.strokeRect(i * slotWidth, slotY, slotWidth - 2, BOTTOM_MARGIN - 12);
-    }
-  }, [rows, path, multiplierIndex]);
+  const slotCount = rows + 1;
+  const slots = Array.from({ length: slotCount }, (_, i) => i);
+  const landed = step >= path.length;
 
   return (
-    <canvas
-      ref={canvasRef}
-      data-testid="plinko-board"
-      className="w-full max-w-full rounded border border-slate-700"
-    />
+    <div className="flex h-full min-h-[380px] flex-col" data-testid="plinko-board">
+      <div className="relative flex-1">
+        {Array.from({ length: rows }).map((_, r) => (
+          <div key={r} className="flex justify-center gap-6" style={{ paddingTop: r === 0 ? 12 : 20 }}>
+            {Array.from({ length: r + 3 }).map((_, c) => (
+              <span key={c} className="h-1.5 w-1.5 rounded-full bg-white/70" />
+            ))}
+          </div>
+        ))}
+        <div
+          className="absolute h-3 w-3 -translate-x-1/2 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.8)] transition-all duration-200"
+          style={{ left: `${ballX}%`, top: `${ballY}%` }}
+        />
+      </div>
+      <div className="mt-4 flex flex-wrap justify-center gap-1">
+        {slots.map((i) => (
+          <MultiplierChip
+            key={i}
+            value={`slot ${i}`}
+            tone={landed && i === multiplierIndex ? 'pink' : 'neutral'}
+            active={landed && i === multiplierIndex}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

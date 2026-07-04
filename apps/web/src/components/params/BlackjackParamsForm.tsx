@@ -9,12 +9,12 @@ export function BlackjackParamsForm({}: {
   onChange: (value: BlackjackParams) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 text-sm text-slate-300">
+    <div className="flex flex-col gap-2 text-sm text-muted-foreground">
       <p>
         Cards are dealt and played automatically per a fixed basic-strategy table — no
         configuration needed.
       </p>
-      <ul className="list-disc pl-5 text-xs text-slate-400">
+      <ul className="list-disc pl-5 text-xs">
         <li>Infinite-deck draw (cards are drawn independently, with replacement).</li>
         <li>No split, double, surrender, or insurance.</li>
         <li>Dealer hits to 16 and stands on all 17s (hard or soft).</li>

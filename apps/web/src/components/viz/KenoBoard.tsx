@@ -1,10 +1,31 @@
+'use client';
+
+import { useEffect } from 'react';
 import type { KenoOutcome } from '@/lib/types';
 import type { KenoParams } from '@/lib/params';
 import { KENO_GAME_TILES_COUNT } from '@/lib/params';
+import { cn } from '@/lib/utils';
 
 const COLS = 8;
 
-export function KenoBoard({ outcome, params }: { outcome: KenoOutcome; params?: KenoParams }) {
+// Single-reveal (per the task's guidance -- Keno's zip counterpart doesn't
+// imply a step-by-step narrative the way Mines/Chicken/HiLo do). Still calls
+// onRevealComplete immediately on mount, since GamePage's phase machine
+// gates ResultPanel on it regardless of whether a Viz actually stages.
+export function KenoBoard({
+  outcome,
+  params,
+  onRevealComplete,
+}: {
+  outcome: KenoOutcome;
+  params?: KenoParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
+}) {
+  useEffect(() => {
+    onRevealComplete?.();
+  }, [onRevealComplete]);
+
   const pickSet = new Set(params?.picks ?? []);
   const drawnSet = new Set(outcome.drawn);
   const hitSet = new Set(outcome.hits);
@@ -22,18 +43,6 @@ export function KenoBoard({ outcome, params }: { outcome: KenoOutcome; params?: 
           const isDrawn = drawnSet.has(tile);
           const isHit = hitSet.has(tile);
 
-          let classes =
-            'flex aspect-square items-center justify-center rounded text-xs font-bold border ';
-          if (isHit) {
-            classes += 'bg-emerald-600 border-emerald-400 text-white';
-          } else if (isDrawn) {
-            classes += 'bg-blue-900/60 border-blue-500 text-blue-200';
-          } else if (isPick) {
-            classes += 'bg-slate-800 border-slate-500 text-slate-200';
-          } else {
-            classes += 'bg-slate-900 border-slate-700 text-slate-500';
-          }
-
           return (
             <div
               key={tile}
@@ -41,14 +50,23 @@ export function KenoBoard({ outcome, params }: { outcome: KenoOutcome; params?: 
               data-pick={isPick}
               data-drawn={isDrawn}
               data-hit={isHit}
-              className={classes}
+              className={cn(
+                'flex aspect-square items-center justify-center rounded text-xs font-bold ring-1',
+                isHit
+                  ? 'bg-emerald-600 text-white ring-emerald-400'
+                  : isDrawn
+                    ? 'bg-blue-900/60 text-blue-200 ring-blue-500'
+                    : isPick
+                      ? 'bg-white/10 text-foreground ring-white/20'
+                      : 'bg-card text-muted-foreground ring-border'
+              )}
             >
               {tile}
             </div>
           );
         })}
       </div>
-      <div className="flex items-center justify-between text-sm text-slate-300">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
           Hits: {outcome.hitCount}
           {params ? ` / ${params.picks.length}` : ''}

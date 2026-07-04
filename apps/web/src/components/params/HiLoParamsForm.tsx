@@ -1,6 +1,8 @@
 'use client';
 
 import type { HiLoGuess, HiLoParams } from '@/lib/params';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 const GUESSES: HiLoGuess[] = ['higher', 'lower'];
 const MAX_GUESSES = 51;
@@ -30,38 +32,47 @@ export function HiLoParamsForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-sm text-slate-300">
+      <div className="text-sm text-muted-foreground">
         Guess sequence ({value.guesses.length}/{MAX_GUESSES})
       </div>
 
       <div className="flex flex-wrap gap-2" data-testid="hilo-guess-chips">
         {value.guesses.map((guess, index) => (
-          <button
+          <Badge
             key={`${guess}-${index}`}
-            type="button"
+            variant="secondary"
+            className="cursor-pointer hover:bg-red-900/40 focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => removeGuess(index)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                removeGuess(index);
+              }
+            }}
             title="Remove"
-            className="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-red-900/40 hover:border-red-700"
           >
             {index + 1}. {GUESS_LABELS[guess]} ×
-          </button>
+          </Badge>
         ))}
         {value.guesses.length === 0 && (
-          <span className="text-xs text-slate-500">No guesses added yet</span>
+          <span className="text-xs text-muted-foreground">No guesses added yet</span>
         )}
       </div>
 
       <div className="flex gap-2">
         {GUESSES.map((guess) => (
-          <button
+          <Button
             key={guess}
             type="button"
+            variant="outline"
+            className="flex-1"
             disabled={value.guesses.length >= MAX_GUESSES}
             onClick={() => addGuess(guess)}
-            className="flex-1 rounded border border-slate-700 bg-slate-900 p-2 text-sm text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             + {GUESS_LABELS[guess]}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

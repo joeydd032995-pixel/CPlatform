@@ -2,6 +2,9 @@
 
 import type { MinesParams } from '@/lib/params';
 import { MINES_GAME_TILES_COUNT } from '@/lib/params';
+import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function MinesParamsForm({
   value,
@@ -13,38 +16,39 @@ export function MinesParamsForm({
   const maxPicks = MINES_GAME_TILES_COUNT - value.mines;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Mines (1-24)
-        <input
-          type="number"
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="mb-2 flex items-center justify-between text-[10px] font-bold tracking-widest text-muted-foreground">
+          <span>MINES</span>
+          <span>{value.mines}</span>
+        </div>
+        <Slider
           min={1}
           max={24}
-          value={value.mines}
-          onChange={(e) => {
-            const mines = Number(e.target.value);
+          step={1}
+          value={[value.mines]}
+          onValueChange={(vals) => {
+            const mines = vals[0] ?? value.mines;
             const clampedMax = MINES_GAME_TILES_COUNT - mines;
-            onChange({
-              mines,
-              picks: Math.min(value.picks, Math.max(clampedMax, 0)),
-            });
+            onChange({ mines, picks: Math.min(value.picks, Math.max(clampedMax, 0)) });
           }}
-          className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
         />
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Picks (0-{maxPicks})
-        <input
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="mines-picks" className="text-sm text-muted-foreground">
+          Picks (0-{maxPicks})
+        </Label>
+        <Input
+          id="mines-picks"
           type="number"
           min={0}
           max={maxPicks}
           value={value.picks}
           onChange={(e) =>
-            onChange({ ...value, picks: Math.min(Number(e.target.value), maxPicks) })
+            onChange({ ...value, picks: Math.min(Math.max(Number(e.target.value), 0), maxPicks) })
           }
-          className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
         />
-      </label>
+      </div>
     </div>
   );
 }

@@ -1,82 +1,79 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { DartsOutcome } from '@/lib/types';
 import type { DartsParams } from '@/lib/params';
+import { MultiplierChip } from '@/components/games/GameShell';
 
-const SIZE = 320;
-const BOARD_RADIUS_SCALE = 0.5; // distance=0.5 maps to the canvas edge.
-
-// Ring boundaries in the same `distance` units as outcome.distance (see
-// packages/games/src/darts.ts's DARTS_ZONES; u = 4*distance^2, so
-// distance = sqrt(u)/2). Listed innermost-first as (name, outerRadius).
-const RINGS: Array<{ name: string; outerDistance: number; multiplier: number }> = [
-  { name: 'bullseye', outerDistance: Math.sqrt(0.02) / 2, multiplier: 15 },
-  { name: 'inner', outerDistance: Math.sqrt(0.1) / 2, multiplier: 4 },
-  { name: 'middle', outerDistance: Math.sqrt(0.3) / 2, multiplier: 1.2 },
-  { name: 'outer', outerDistance: Math.sqrt(0.6) / 2, multiplier: 0.3 },
-  { name: 'rim', outerDistance: 0.5, multiplier: 0.1 },
+// Conic-gradient dartboard ported visually from the gameframe-studio-x
+// reference; single-reveal (empty params, one throw, no natural staged
+// narrative). Rotation/distance come straight from the already-resolved
+// outcome -- the dart position/spin isn't randomized client-side.
+const ZONE_LEGEND: Array<{ name: DartsOutcome['zone']; multiplier: number }> = [
+  { name: 'bullseye', multiplier: 15 },
+  { name: 'inner', multiplier: 4 },
+  { name: 'middle', multiplier: 1.2 },
+  { name: 'outer', multiplier: 0.3 },
+  { name: 'rim', multiplier: 0.1 },
 ];
 
-const RING_COLORS = ['#dc2626', '#f97316', '#facc15', '#22c55e', '#1e293b'];
-
-export function DartsBoard({ outcome }: { outcome: DartsOutcome; params?: DartsParams }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { distance, rotation, zone, zoneIndex } = outcome;
+export function DartsBoard({
+  outcome,
+  onRevealComplete,
+}: {
+  outcome: DartsOutcome;
+  params?: DartsParams;
+  staged?: boolean;
+  onRevealComplete?: () => void;
+}) {
+  const { distance, rotation, zone } = outcome;
+  const angleDeg = rotation * 360;
+  // distance is in [0, 0.5) units where 0.5 maps to the board's outer rim.
+  const radiusPct = Math.min(distance / 0.5, 1) * 45;
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = SIZE;
-    canvas.height = SIZE;
-
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, SIZE, SIZE);
-
-    const centerX = SIZE / 2;
-    const centerY = SIZE / 2;
-    const pixelsPerUnit = (SIZE / 2) / BOARD_RADIUS_SCALE;
-
-    // Draw rings outermost-first so smaller rings paint over larger ones.
-    for (let i = RINGS.length - 1; i >= 0; i--) {
-      const ring = RINGS[i]!;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, ring.outerDistance * pixelsPerUnit, 0, Math.PI * 2);
-      ctx.fillStyle = RING_COLORS[i] ?? '#1e293b';
-      ctx.fill();
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    // Dart marker at polar (distance, rotation * 2*PI).
-    const angle = rotation * 2 * Math.PI;
-    const dartX = centerX + distance * pixelsPerUnit * Math.cos(angle);
-    const dartY = centerY + distance * pixelsPerUnit * Math.sin(angle);
-
-    ctx.beginPath();
-    ctx.arc(dartX, dartY, 6, 0, Math.PI * 2);
-    ctx.fillStyle = '#f8fafc';
-    ctx.fill();
-    ctx.strokeStyle = '#0f172a';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }, [distance, rotation]);
-
-  const multiplier = RINGS[zoneIndex]?.multiplier ?? RINGS[RINGS.length - 1]!.multiplier;
+    onRevealComplete?.();
+  }, [onRevealComplete]);
 
   return (
-    <div className="flex flex-col items-center gap-3" data-testid="darts-board">
-      <canvas
-        ref={canvasRef}
-        data-testid="darts-canvas"
-        className="max-w-full rounded border border-slate-700"
-      />
-      <div className="text-sm text-slate-300">
-        Zone: <span className="font-semibold capitalize">{zone}</span> — {multiplier}x
+    <div className="flex h-full min-h-[380px] flex-col items-center justify-center gap-4" data-testid="darts-board">
+      <div
+        className="relative h-64 w-64 rounded-full ring-8 ring-slate-800"
+        style={{
+          background:
+            'conic-gradient(#f97316 0 20%, #ef4444 20% 40%, #f97316 40% 60%, #ef4444 60% 80%, #f97316 80% 100%)',
+        }}
+      >
+        <div
+          className="absolute inset-6 rounded-full ring-4 ring-slate-800"
+          style={{
+            background:
+              'conic-gradient(#0f172a 0 25%, #ef4444 25% 30%, #0f172a 30% 55%, #f97316 55% 60%, #0f172a 60% 100%)',
+          }}
+        />
+        <div className="absolute inset-16 grid place-items-center rounded-full bg-slate-900">
+          <div className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+        </div>
+        <div
+          data-testid="darts-marker"
+          className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]"
+          style={{
+            transform: `rotate(${angleDeg}deg) translate(${radiusPct}%) rotate(-${angleDeg}deg)`,
+          }}
+        />
+      </div>
+      <div className="text-sm text-muted-foreground">
+        Zone: <span className="font-semibold capitalize text-foreground">{zone}</span>
+      </div>
+      <div className="flex flex-wrap justify-center gap-2">
+        {ZONE_LEGEND.map((z) => (
+          <MultiplierChip
+            key={z.name}
+            value={`${z.name} ${z.multiplier}x`}
+            tone={z.name === zone ? 'green' : 'neutral'}
+            active={z.name === zone}
+          />
+        ))}
       </div>
     </div>
   );

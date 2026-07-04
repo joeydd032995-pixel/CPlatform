@@ -18,18 +18,18 @@ export function DartsParamsForm({}: {
   onChange: (value: DartsParams) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 text-sm text-slate-300">
+    <div className="flex flex-col gap-2 text-sm text-muted-foreground">
       <p>Throw a single dart at the board — no configuration needed.</p>
       <table className="w-full border-collapse text-left text-xs">
         <thead>
-          <tr className="border-b border-slate-700 text-slate-400">
+          <tr className="border-b border-border text-muted-foreground">
             <th className="py-1">Zone</th>
             <th className="py-1">Multiplier</th>
           </tr>
         </thead>
         <tbody>
           {ZONES.map((zone) => (
-            <tr key={zone.name} className="border-b border-slate-800">
+            <tr key={zone.name} className="border-b border-border">
               <td className="py-1">{zone.name}</td>
               <td className="py-1">{zone.multiplier}</td>
             </tr>

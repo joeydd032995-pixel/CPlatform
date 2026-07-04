@@ -2,8 +2,10 @@
 
 import type { ChickenParams } from '@/lib/params';
 import { CHICKEN_DIFFICULTY_TO_SLICE, CHICKEN_LANES_COUNT } from '@/lib/params';
+import { Slider } from '@/components/ui/slider';
+import { ModeTabs } from '@/components/games/GameShell';
 
-const DIFFICULTIES: ChickenParams['difficulty'][] = ['easy', 'medium', 'hard', 'expert'];
+const DIFFICULTIES = ['easy', 'medium', 'hard', 'expert'] as const;
 
 export function ChickenParamsForm({
   value,
@@ -20,35 +22,21 @@ export function ChickenParamsForm({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Difficulty
-        <select
-          value={value.difficulty}
-          onChange={(e) => handleDifficultyChange(e.target.value as ChickenParams['difficulty'])}
-          className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
-        >
-          {DIFFICULTIES.map((difficulty) => (
-            <option key={difficulty} value={difficulty}>
-              {difficulty}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Lanes (1-{maxLanes})
-        <input
-          type="number"
+    <div className="flex flex-col gap-4">
+      <ModeTabs modes={DIFFICULTIES} value={value.difficulty} onChange={handleDifficultyChange} />
+      <div>
+        <div className="mb-2 flex items-center justify-between text-[10px] font-bold tracking-widest text-muted-foreground">
+          <span>LANES</span>
+          <span>{value.lanes}</span>
+        </div>
+        <Slider
           min={1}
           max={maxLanes}
-          value={value.lanes}
-          onChange={(e) => {
-            const lanes = Number(e.target.value);
-            onChange({ ...value, lanes: Math.min(Math.max(lanes, 1), maxLanes) });
-          }}
-          className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
+          step={1}
+          value={[value.lanes]}
+          onValueChange={(vals) => onChange({ ...value, lanes: vals[0] ?? value.lanes })}
         />
-      </label>
+      </div>
     </div>
   );
 }
