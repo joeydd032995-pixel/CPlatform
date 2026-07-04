@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { nCr } from '../src/combinatorics.js';
 import {
   KENO_GAME_TILES_COUNT,
+  KENO_MAX_MULTIPLIER,
   calculateKenoHitPositions,
   kenoMultiplierTable,
   kenoMultiplier,
@@ -134,6 +135,25 @@ describe('keno analytic paytable', () => {
     expect(table[1]).toBeCloseTo(0, 8);
     expect(table[2]).toBeCloseTo(4.2731513513668995, 8);
     expect(table[3]).toBeCloseTo(33.43704729712237, 8);
+  });
+
+  it('no cell in any table exceeds KENO_MAX_MULTIPLIER', () => {
+    for (const risk of RISKS) {
+      for (let N = 1; N <= 10; N++) {
+        const table = kenoMultiplierTable(risk, N);
+        for (const m of table) {
+          expect(m).toBeLessThanOrEqual(KENO_MAX_MULTIPLIER);
+        }
+      }
+    }
+  });
+
+  it('the extreme tail (high risk, 10 picks) actually saturates at the cap', () => {
+    // Uncapped, this cell would be ~6e8x (the CodeRabbit finding that
+    // motivated the cap) -- the water-filling clamp must pin it to
+    // exactly KENO_MAX_MULTIPLIER while the EV sweep above still holds.
+    const table = kenoMultiplierTable('high', 10);
+    expect(table[10]).toBe(KENO_MAX_MULTIPLIER);
   });
 });
 

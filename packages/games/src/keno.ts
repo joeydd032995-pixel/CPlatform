@@ -61,6 +61,15 @@ const KENO_RISK_PROFILES: Record<KenoRisk, KenoRiskProfile> = {
 
 const KENO_TARGET_EV = 0.99;
 
+// Hard ceiling on any single cell of the paytable. The raw
+// inverse-probability weighting would otherwise push the rarest cells
+// (e.g. 10-of-10 at high risk, ~1 in 253M) into the 10^8x range -- a
+// payout the platform would be crediting directly with no liability
+// bound. Capped cells are clamped and the uncapped cells are rescaled so
+// every table's EV stays exactly KENO_TARGET_EV (see the water-filling
+// loop in kenoMultiplierTable).
+export const KENO_MAX_MULTIPLIER = 10000;
+
 // P(hitting exactly k of N picks) = C(N,k) * C(40-N, 10-k) / C(40,10).
 function kenoHitProbability(picksCount: number, k: number): number {
   return (
@@ -98,6 +107,46 @@ export function kenoMultiplierTable(
   const table = weights.map((w) =>
     denom > 0 ? (KENO_TARGET_EV * w) / denom : 0
   );
+
+  // Water-filling clamp: saturate any cell above KENO_MAX_MULTIPLIER at
+  // the cap, then rescale the remaining (uncapped, paying) cells so the
+  // table's EV returns to exactly KENO_TARGET_EV. Rescaling can push a
+  // previously-uncapped cell over the cap, so iterate until stable --
+  // the capped set only grows, so this terminates in at most
+  // picksCount+1 passes. Capping preserves monotonicity (the largest
+  // cells saturate at an equal ceiling).
+  const capped = new Set<number>();
+  for (;;) {
+    let grew = false;
+    for (let k = 0; k <= picksCount; k++) {
+      if (!capped.has(k) && table[k]! > KENO_MAX_MULTIPLIER) {
+        table[k] = KENO_MAX_MULTIPLIER;
+        capped.add(k);
+        grew = true;
+      }
+    }
+    if (!grew) break;
+
+    const cappedEv = [...capped].reduce((sum, k) => sum + probs[k]! * KENO_MAX_MULTIPLIER, 0);
+    const budget = KENO_TARGET_EV - cappedEv;
+    const uncappedEv = table.reduce(
+      (sum, m, k) => (capped.has(k) ? sum : sum + probs[k]! * m),
+      0
+    );
+    // The capped cells carry minuscule probability mass, so the budget for
+    // the rest of the table stays comfortably positive; if a profile were
+    // ever tuned so hard that capping alone exceeds the EV target, that's
+    // a configuration bug worth failing loudly on, not papering over.
+    if (budget <= 0 || uncappedEv <= 0) {
+      throw new Error(
+        `Keno paytable for risk(${risk}), picksCount(${picksCount}) cannot hold EV ${KENO_TARGET_EV} under cap ${KENO_MAX_MULTIPLIER}`
+      );
+    }
+    const scale = budget / uncappedEv;
+    for (let k = 0; k <= picksCount; k++) {
+      if (!capped.has(k)) table[k] = table[k]! * scale;
+    }
+  }
 
   kenoTableCache.set(cacheKey, table);
   return table;

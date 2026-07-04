@@ -22,7 +22,7 @@
 import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
 import { InvalidBetParamsError } from '@cplatform/shared';
-import { deck, cardIdToCard, getCardRankValue, type Card } from './deck.js';
+import { drawCardFromFloat, getCardRankValue, type Card } from './deck.js';
 import { applyHouseEdge } from './house-edge.js';
 import { validateBetAmount } from './bet-amount.js';
 
@@ -44,11 +44,7 @@ export const calculateBlackjackResults = ({
 
   return Array(limit)
     .fill(0)
-    .map(() => {
-      const float = floatsRng.next().value;
-      const cardId = Math.floor(float * deck.length);
-      return cardIdToCard(cardId);
-    });
+    .map(() => drawCardFromFloat(floatsRng.next().value));
 };
 
 // --- Hand evaluation ------------------------------------------------------
@@ -141,11 +137,7 @@ export function resolveBlackjack(
   validateBetAmount('blackjack', betAmount);
 
   const floatsRng = createFloatGenerator(generatorOpts);
-  const drawCard = (): Card => {
-    const float = floatsRng.next().value;
-    const cardId = Math.floor(float * deck.length);
-    return cardIdToCard(cardId);
-  };
+  const drawCard = (): Card => drawCardFromFloat(floatsRng.next().value);
 
   const playerCards: Card[] = [];
   const dealerCards: Card[] = [];

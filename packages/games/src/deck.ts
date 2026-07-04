@@ -71,3 +71,11 @@ export const cardIdToCard = (cardId: number): Card => {
 
 export const isCard = (cardString: string): cardString is Card =>
   deck.indexOf(cardString as Card) !== -1;
+
+// The one and only float -> card mapping for the with-replacement card
+// games (Blackjack, HiLo). Centralized here so the fairness-critical
+// conversion can never silently diverge between the games that share it.
+// Do NOT change this to a shuffle/shrinking-deck draw -- see CLAUDE.md's
+// standing caveat: production draws each card independently.
+export const drawCardFromFloat = (float: number): Card =>
+  cardIdToCard(Math.floor(float * deck.length));

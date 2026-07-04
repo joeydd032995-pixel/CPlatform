@@ -66,6 +66,7 @@ export {
   cardToCardId,
   cardIdToCard,
   isCard,
+  drawCardFromFloat,
 } from './deck.js';
 export type { Card, CardRank, CardRankValue } from './deck.js';
 

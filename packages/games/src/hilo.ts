@@ -20,7 +20,7 @@
 import { z } from 'zod';
 import { createFloatGenerator, type GeneratorOptions } from '@cplatform/core-rng';
 import { InvalidBetParamsError } from '@cplatform/shared';
-import { type Card, deck, cardIdToCard, getCardRankValue } from './deck.js';
+import { type Card, drawCardFromFloat, getCardRankValue } from './deck.js';
 import { applyHouseEdge } from './house-edge.js';
 import { validateBetAmount } from './bet-amount.js';
 
@@ -38,11 +38,7 @@ export const calculateHiloResults = ({
 
   return Array(limit)
     .fill(0)
-    .map(() => {
-      const float = floatsRng.next().value;
-      const cardId = Math.floor(float * deck.length);
-      return cardIdToCard(cardId);
-    });
+    .map(() => drawCardFromFloat(floatsRng.next().value));
 };
 
 export const HILO_HOUSE_EDGE = 0.01;
