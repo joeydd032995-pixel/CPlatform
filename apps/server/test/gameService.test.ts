@@ -20,6 +20,11 @@ const GAME_CASES: GameCase[] = [
   { game: 'plinko', params: { rows: 16, risk: 'medium' } },
   { game: 'dice', params: { target: 50, direction: 'under' } },
   { game: 'roulette', params: { betType: 'red', numbers: [] } },
+  { game: 'keno', params: { risk: 'classic', picks: [1, 2, 3] } },
+  { game: 'chicken', params: { difficulty: 'easy', lanes: 3 } },
+  { game: 'darts', params: {} },
+  { game: 'hilo', params: { guesses: ['higher'] } },
+  { game: 'blackjack', params: {} },
 ];
 
 function buildHarness(startingBalance = 1000) {
