@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUser } from '@/lib/user-context';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 function truncate(id: string): string {
   if (id.length <= 12) return id;
@@ -21,27 +23,34 @@ export function Header() {
   };
 
   return (
-    <header className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
-      <Link href="/" className="text-lg font-bold text-slate-100">
+    <header className="flex items-center justify-between border-b border-border bg-card px-6 py-4">
+      <Link href="/" className="text-lg font-bold">
         CPlatform
       </Link>
-      <nav className="flex items-center gap-6 text-sm text-slate-300">
-        <Link href="/seeds" className="hover:text-white">
+      <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+        <Link href="/seeds" className="hover:text-foreground">
           Seeds
         </Link>
-        <Link href="/verify" className="hover:text-white">
+        <Link href="/verify" className="hover:text-foreground">
           Verify
         </Link>
-        <span className="text-slate-500">Balance: {balance === null ? '—' : balance.toFixed(2)}</span>
+        <Badge variant="secondary">
+          Balance: {balance === null ? '—' : balance.toFixed(2)}
+        </Badge>
         {userId && (
-          <span className="flex items-center gap-2 rounded bg-slate-900 px-2 py-1 font-mono text-xs">
+          <span className="flex items-center gap-2 rounded bg-background px-2 py-1 font-mono text-xs">
             {truncate(userId)}
-            <button onClick={handleCopy} className="text-blue-400 hover:text-blue-300" type="button">
+            <Button variant="ghost" size="sm" className="h-auto px-1 py-0" onClick={handleCopy}>
               {copied ? 'copied' : 'copy'}
-            </button>
-            <button onClick={newIdentity} className="text-slate-500 hover:text-red-400" type="button">
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto px-1 py-0 text-muted-foreground hover:text-destructive"
+              onClick={newIdentity}
+            >
               new identity
-            </button>
+            </Button>
           </span>
         )}
       </nav>

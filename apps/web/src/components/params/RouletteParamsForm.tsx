@@ -2,7 +2,20 @@
 
 import { useState } from 'react';
 import type { RouletteBetType, RouletteParams } from '@/lib/params';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
+// Fresh build (no zip Roulette equivalent) using the ported shadcn
+// primitives in the same visual voice as the other reskinned games. The
+// bet-type/number logic below is reused unchanged from the previous
+// RouletteParamsForm -- only the markup is new.
 const BET_TYPES: RouletteBetType[] = [
   'straight',
   'split',
@@ -60,7 +73,7 @@ export function RouletteParamsForm({
     const next: RouletteParams = {
       betType,
       numbers: needsNumbers(betType) ? value.numbers : [],
-      zone: needsZone(betType) ? value.zone ?? 0 : undefined,
+      zone: needsZone(betType) ? (value.zone ?? 0) : undefined,
     };
     onChange(next);
     setNumbersText(next.numbers.join(','));
@@ -79,47 +92,53 @@ export function RouletteParamsForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Bet type
-        <select
-          value={value.betType}
-          onChange={(e) => handleBetTypeChange(e.target.value as RouletteBetType)}
-          className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
-        >
-          {BET_TYPES.map((betType) => (
-            <option key={betType} value={betType}>
-              {betType}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-col gap-1">
+        <Label>Bet type</Label>
+        <Select value={value.betType} onValueChange={(v) => handleBetTypeChange(v as RouletteBetType)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {BET_TYPES.map((betType) => (
+              <SelectItem key={betType} value={betType}>
+                {betType}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {needsNumbers(value.betType) && (
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          {expectedCount === 1 ? 'Number' : `Numbers (comma-separated, ${expectedCount} required)`}
-          <input
+        <div className="flex flex-col gap-1">
+          <Label>
+            {expectedCount === 1 ? 'Number' : `Numbers (comma-separated, ${expectedCount} required)`}
+          </Label>
+          <Input
             type="text"
             value={numbersText}
             onChange={(e) => handleNumbersTextChange(e.target.value)}
             placeholder={expectedCount === 1 ? 'e.g. 17' : 'e.g. 1,2'}
-            className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
           />
-        </label>
+        </div>
       )}
 
       {needsZone(value.betType) && (
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Zone
-          <select
-            value={value.zone ?? 0}
-            onChange={(e) => onChange({ ...value, zone: Number(e.target.value) })}
-            className="rounded border border-slate-700 bg-slate-900 p-2 text-slate-100"
+        <div className="flex flex-col gap-1">
+          <Label>Zone</Label>
+          <Select
+            value={String(value.zone ?? 0)}
+            onValueChange={(v) => onChange({ ...value, zone: Number(v) })}
           >
-            <option value={0}>1st (1)</option>
-            <option value={1}>2nd (2)</option>
-            <option value={2}>3rd (3)</option>
-          </select>
-        </label>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">1st (1)</SelectItem>
+              <SelectItem value="1">2nd (2)</SelectItem>
+              <SelectItem value="2">3rd (3)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       )}
     </div>
   );

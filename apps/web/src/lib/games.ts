@@ -70,6 +70,13 @@ export type ParamsFormProps<P> = {
 export type VizProps<O, P> = {
   outcome: O;
   params: P;
+  // Optional client-side staged-reveal controls (see GamePage.tsx). When
+  // `staged` is true, the Viz should run its own reveal animation over the
+  // already-fully-determined `outcome` and call `onRevealComplete` once
+  // done. When omitted/false (e.g. VerifyForm's independent-verification
+  // reuse of the same Viz), the Viz renders the final state immediately.
+  staged?: boolean;
+  onRevealComplete?: () => void;
 };
 
 export type GameRegistryEntry<P, O> = {

@@ -5,6 +5,20 @@ import { z } from 'zod';
 import { GAME_NAMES, gamesRegistry, isGameName, type GameName, type GameRegistryEntry } from '@/lib/games';
 import { verifyBet, ApiError } from '@/lib/api-client';
 import type { VerifyResponse } from '@/lib/types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Mirrors packages/core-rng/src/rng.ts's RNGOptionsSchema.serverSeed.
 const ServerSeedSchema = z.string().regex(/^[0-9a-f]{64}$/i, 'Must be 64-char hex');
@@ -47,13 +61,13 @@ export function VerifyForm({
   const serverSeedError = useMemo(() => {
     if (!serverSeed) return null;
     const parsed = ServerSeedSchema.safeParse(serverSeed);
-    return parsed.success ? null : parsed.error.issues[0]?.message ?? 'Invalid server seed';
+    return parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Invalid server seed');
   }, [serverSeed]);
 
   const clientSeedError = useMemo(() => {
     if (!clientSeed) return null;
     const parsed = ClientSeedSchema.safeParse(clientSeed);
-    return parsed.success ? null : parsed.error.issues[0]?.message ?? 'Invalid client seed';
+    return parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Invalid client seed');
   }, [clientSeed]);
 
   const nonceError = useMemo(() => {
@@ -112,102 +126,103 @@ export function VerifyForm({
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <h1 className="text-2xl font-bold">Verify a bet</h1>
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-muted-foreground">
         Independently recompute any bet's outcome from its revealed server seed, client seed,
         nonce, and game parameters.
       </p>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/50 p-6">
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Game
-          <select
-            value={game}
-            onChange={(e) => handleGameChange(e.target.value as GameName)}
-            className="rounded border border-slate-700 bg-slate-950 p-2 text-slate-100"
-          >
-            {GAME_NAMES.map((name) => (
-              <option key={name} value={name}>
-                {gamesRegistry[name].label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-6">
+          <div className="flex flex-col gap-1">
+            <Label>Game</Label>
+            <Select value={game} onValueChange={(v) => handleGameChange(v as GameName)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {GAME_NAMES.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {gamesRegistry[name].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Server seed (64-char hex)
-          <input
-            type="text"
-            value={serverSeed}
-            onChange={(e) => setServerSeed(e.target.value)}
-            className="rounded border border-slate-700 bg-slate-950 p-2 font-mono text-xs text-slate-100"
-          />
-          {serverSeedError && <span className="text-xs text-red-400">{serverSeedError}</span>}
-        </label>
+          <div className="flex flex-col gap-1">
+            <Label>Server seed (64-char hex)</Label>
+            <Input
+              type="text"
+              value={serverSeed}
+              onChange={(e) => setServerSeed(e.target.value)}
+              className="font-mono text-xs"
+            />
+            {serverSeedError && <span className="text-xs text-destructive">{serverSeedError}</span>}
+          </div>
 
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Client seed
-          <input
-            type="text"
-            value={clientSeed}
-            onChange={(e) => setClientSeed(e.target.value)}
-            className="rounded border border-slate-700 bg-slate-950 p-2 font-mono text-xs text-slate-100"
-          />
-          {clientSeedError && <span className="text-xs text-red-400">{clientSeedError}</span>}
-        </label>
+          <div className="flex flex-col gap-1">
+            <Label>Client seed</Label>
+            <Input
+              type="text"
+              value={clientSeed}
+              onChange={(e) => setClientSeed(e.target.value)}
+              className="font-mono text-xs"
+            />
+            {clientSeedError && <span className="text-xs text-destructive">{clientSeedError}</span>}
+          </div>
 
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Nonce
-          <input
-            type="number"
-            min={0}
-            value={nonce}
-            onChange={(e) => setNonce(Number(e.target.value))}
-            className="rounded border border-slate-700 bg-slate-950 p-2 text-slate-100"
-          />
-          {nonceError && <span className="text-xs text-red-400">{nonceError}</span>}
-        </label>
+          <div className="flex flex-col gap-1">
+            <Label>Nonce</Label>
+            <Input
+              type="number"
+              min={0}
+              value={nonce}
+              onChange={(e) => setNonce(Number(e.target.value))}
+            />
+            {nonceError && <span className="text-xs text-destructive">{nonceError}</span>}
+          </div>
 
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Params (JSON)
-          <textarea
-            value={paramsText}
-            onChange={(e) => setParamsText(e.target.value)}
-            rows={5}
-            className="rounded border border-slate-700 bg-slate-950 p-2 font-mono text-xs text-slate-100"
-          />
-          {paramsError && <span className="text-xs text-red-400">{paramsError}</span>}
-        </label>
+          <div className="flex flex-col gap-1">
+            <Label>Params (JSON)</Label>
+            <Textarea
+              value={paramsText}
+              onChange={(e) => setParamsText(e.target.value)}
+              rows={5}
+              className="font-mono text-xs"
+            />
+            {paramsError && <span className="text-xs text-destructive">{paramsError}</span>}
+          </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="w-fit rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? 'Verifying...' : 'Verify'}
-        </button>
-      </div>
+          <Button onClick={handleSubmit} disabled={!canSubmit} className="w-fit">
+            {loading ? 'Verifying...' : 'Verify'}
+          </Button>
+        </CardContent>
+      </Card>
 
       {error && (
-        <div className="rounded border border-red-800 bg-red-950/40 p-3 text-sm text-red-300">
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {result && (
-        <div className="flex flex-col gap-3 rounded-lg border border-emerald-800 bg-emerald-950/30 p-6">
-          <span className="w-fit rounded bg-emerald-700 px-3 py-1 text-sm font-bold text-white">
-            VERIFIED
-          </span>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <span className="text-slate-500">Recomputed server seed hash</span>
-            <span className="truncate font-mono text-xs">{result.serverSeedHash}</span>
-            <span className="text-slate-500">Nonce</span>
-            <span>{result.nonce}</span>
-            <span className="text-slate-500">Multiplier</span>
-            <span>{result.multiplier.toFixed(4)}x</span>
-          </div>
-          <Viz outcome={result.outcome as unknown as Record<string, unknown>} params={parsedParams as Record<string, unknown>} />
-        </div>
+        <Card className="border-emerald-800 bg-emerald-950/30">
+          <CardContent className="flex flex-col gap-3 pt-6">
+            <Badge className="w-fit bg-emerald-700 text-white">VERIFIED</Badge>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <span className="text-muted-foreground">Recomputed server seed hash</span>
+              <span className="truncate font-mono text-xs">{result.serverSeedHash}</span>
+              <span className="text-muted-foreground">Nonce</span>
+              <span>{result.nonce}</span>
+              <span className="text-muted-foreground">Multiplier</span>
+              <span>{result.multiplier.toFixed(4)}x</span>
+            </div>
+            <Viz
+              outcome={result.outcome as unknown as Record<string, unknown>}
+              params={parsedParams as Record<string, unknown>}
+            />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

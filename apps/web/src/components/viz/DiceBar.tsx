@@ -1,6 +1,10 @@
 import type { DiceOutcome } from '@/lib/types';
 import type { DiceParams } from '@/lib/params';
 
+// Adapted from the gameframe-studio-x reference's TargetGame.tsx shell
+// (big colored result number + history-style framing) to Dice's real
+// target/direction/roll mechanic -- there's no Dice equivalent in the zip.
+// Single-reveal (no natural staged narrative for a single roll).
 export function DiceBar({ outcome }: { outcome: DiceOutcome; params?: DiceParams }) {
   const { roll, target, direction, win } = outcome;
 
@@ -10,8 +14,13 @@ export function DiceBar({ outcome }: { outcome: DiceOutcome; params?: DiceParams
       : { left: '0%', width: `${target}%` };
 
   return (
-    <div className="flex flex-col gap-2" data-testid="dice-bar">
-      <div className="relative h-6 w-full overflow-hidden rounded bg-slate-800">
+    <div className="flex h-full min-h-[380px] flex-col justify-center gap-6" data-testid="dice-bar">
+      <div
+        className={`text-center text-6xl font-bold ${win ? 'text-emerald-400' : 'text-red-500'}`}
+      >
+        {roll.toFixed(2)}
+      </div>
+      <div className="relative h-6 w-full overflow-hidden rounded bg-muted">
         <div
           className="absolute inset-y-0 bg-emerald-700/50"
           style={winZoneStyle}
@@ -24,11 +33,11 @@ export function DiceBar({ outcome }: { outcome: DiceOutcome; params?: DiceParams
         />
       </div>
       <div className="flex items-center justify-between text-sm">
-        <span className="text-slate-400">
+        <span className="text-muted-foreground">
           Target: {direction} {target.toFixed(2)}
         </span>
         <span className={win ? 'font-bold text-emerald-400' : 'font-bold text-red-400'}>
-          Roll: {roll.toFixed(2)} — {win ? 'WIN' : 'LOSE'}
+          {win ? 'WIN' : 'LOSE'}
         </span>
       </div>
     </div>

@@ -5,6 +5,9 @@ import { BetAmountSchema } from '@/lib/params';
 import { playGame, ApiError } from '@/lib/api-client';
 import type { PlayGameResult } from '@/lib/types';
 import type { GameName } from '@/lib/games';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { BetInput, PlayButton } from '@/components/games/GameShell';
 
 // Maps ApiError codes to friendly, non-technical copy. Falls back to the
 // server's own message for anything not explicitly listed (e.g.
@@ -40,7 +43,6 @@ export function BetForm({
   onResult: (result: PlayGameResult) => void;
   refreshBalance: () => Promise<void>;
 }) {
-  const [betAmount, setBetAmount] = useState(10);
   const [betAmountText, setBetAmountText] = useState('10');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,18 +51,13 @@ export function BetForm({
   // flaky-network retry into a single bet.
   const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID());
 
+  const betAmount = Number(betAmountText);
   const betAmountResult = BetAmountSchema.safeParse(betAmount);
   const betAmountError = betAmountResult.success
     ? null
-    : betAmountResult.error.issues[0]?.message ?? 'Invalid bet amount';
+    : (betAmountResult.error.issues[0]?.message ?? 'Invalid bet amount');
 
   const canSubmit = betAmountResult.success && !loading;
-
-  const handleBetAmountChange = (text: string) => {
-    setBetAmountText(text);
-    const parsed = Number(text);
-    setBetAmount(parsed);
-  };
 
   const handleBet = async () => {
     if (!betAmountResult.success) return;
@@ -102,36 +99,21 @@ export function BetForm({
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900/50 p-6">
-      <h2 className="text-xl font-bold text-slate-100">Place Bet</h2>
+    <Card>
+      <CardHeader>
+        <CardTitle>Place Bet</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <BetInput text={betAmountText} onTextChange={setBetAmountText} error={betAmountError} />
 
-      <label className="flex flex-col gap-1 text-sm text-slate-300">
-        Bet Amount
-        <input
-          type="number"
-          value={betAmountText}
-          onChange={(e) => handleBetAmountChange(e.target.value)}
-          className={`rounded border p-2 text-slate-100 ${
-            betAmountError ? 'border-red-600 bg-red-950/30' : 'border-slate-700 bg-slate-950'
-          }`}
-          placeholder="Bet Amount"
-        />
-        {betAmountError && <span className="text-xs text-red-400">{betAmountError}</span>}
-      </label>
+        <PlayButton label="PLACE BET" onClick={handleBet} disabled={!canSubmit} loading={loading} />
 
-      <button
-        onClick={handleBet}
-        disabled={!canSubmit}
-        className="rounded bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {loading ? 'Placing Bet...' : 'Place Bet'}
-      </button>
-
-      {error && (
-        <div className="rounded border border-red-800 bg-red-950/40 p-3 text-sm text-red-300">
-          {error}
-        </div>
-      )}
-    </div>
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
   );
 }

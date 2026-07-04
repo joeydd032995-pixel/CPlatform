@@ -1,5 +1,9 @@
+import Link from 'next/link';
 import type { PlayGameResult } from '@/lib/types';
 import { buildVerifyLink } from '@/lib/verify-link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 export function ResultPanel({
   result,
@@ -24,30 +28,38 @@ export function ResultPanel({
   const win = result.payout > 0;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900/50 p-6">
-      <h3 className="text-lg font-bold text-slate-100">Result</h3>
-      <div className="grid grid-cols-2 gap-2 text-sm text-slate-300">
-        <span className="text-slate-500">Payout</span>
-        <span className={win ? 'font-semibold text-emerald-400' : 'font-semibold text-red-400'}>
-          {result.payout.toFixed(2)}
-        </span>
-        <span className="text-slate-500">Multiplier</span>
-        <span>{result.multiplier.toFixed(4)}x</span>
-        <span className="text-slate-500">Nonce</span>
-        <span>{result.nonce}</span>
-        <span className="text-slate-500">Server seed hash</span>
-        <span className="truncate font-mono text-xs">{result.serverSeedHash}</span>
-      </div>
-      <a
-        href={verifyHref}
-        className="inline-block rounded border border-blue-700 px-4 py-2 text-center text-sm font-semibold text-blue-400 hover:bg-blue-950"
-      >
-        Verify this bet
-      </a>
-      <p className="text-xs text-slate-500">
-        The server seed is revealed when you rotate it on the Seeds page — verification will
-        show the recomputed hash once you provide it there.
-      </p>
-    </div>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle>Result</CardTitle>
+        <Badge variant={win ? 'default' : 'destructive'} className={win ? 'bg-emerald-600' : ''}>
+          {win ? 'WIN' : 'LOSE'}
+        </Badge>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+          <span>Payout</span>
+          <span
+            className={win ? 'font-semibold text-emerald-400' : 'font-semibold text-red-400'}
+          >
+            {result.payout.toFixed(2)}
+          </span>
+          <span>Multiplier</span>
+          <span className="text-foreground">{result.multiplier.toFixed(4)}x</span>
+          <span>Nonce</span>
+          <span className="text-foreground">{result.nonce}</span>
+          <span>Server seed hash</span>
+          <span className="truncate font-mono text-xs text-foreground">
+            {result.serverSeedHash}
+          </span>
+        </div>
+        <Button asChild variant="outline" className="w-full">
+          <Link href={verifyHref}>Verify this bet</Link>
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          The server seed is revealed when you rotate it on the Seeds page — verification will
+          show the recomputed hash once you provide it there.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
