@@ -104,7 +104,17 @@ export async function createApp(): Promise<Express> {
     jurisdictionFlags,
     ensureUser,
     userDb,
-    env: { ...env, corsOrigins },
+    // Same class of environment-only discrepancy as the helmet cast in
+    // app.ts: locally (and in CI) `env.NODE_ENV` infers as required (zod's
+    // `.default()` guarantees a value after parsing), but Vercel's build
+    // has resolved a type where it's optional -- likely a caret-ranged
+    // zod/typescript version difference between this sandbox's lockfile
+    // resolution and Vercel's fresh install. `?? 'development'` strips the
+    // `| undefined` from the type unconditionally (it never actually fires
+    // at runtime -- loadEnv() already guarantees NODE_ENV is set), so this
+    // satisfies AppDeps's required `NODE_ENV: string` regardless of which
+    // way a given environment infers it.
+    env: { ...env, NODE_ENV: env.NODE_ENV ?? 'development', corsOrigins },
     logger,
   });
 }
