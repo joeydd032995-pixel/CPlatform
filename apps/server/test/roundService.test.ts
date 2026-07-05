@@ -16,6 +16,32 @@ import {
   createFakeEnsureUser,
 } from './helpers/inMemoryStores.js';
 
+// 24 mines / 1 safe tile makes a bust likely (24/25) but not certain on any
+// single reveal -- scans userIds (each maps to distinct deterministic seed
+// material) until one actually busts on the first reveal, rather than
+// assuming it always will.
+async function startAndBustMinesRound(
+  roundService: ReturnType<typeof import('../src/roundService.js').createRoundService>,
+  ensureUser: { ensureUser(userId: string): Promise<void> },
+  userIdPrefix: string,
+  betAmount = 10
+) {
+  for (let i = 0; i < 50; i++) {
+    const userId = `${userIdPrefix}-${i}`;
+    await ensureUser.ensureUser(userId);
+    const started = await roundService.startMinesRound({ userId, betAmount, mines: 24 });
+    const revealed = await roundService.minesReveal({
+      userId,
+      roundId: started.id,
+      expectedVersion: started.version,
+    });
+    if (revealed.status === 'BUSTED') {
+      return { userId, started, revealed };
+    }
+  }
+  throw new Error('no bust found within 50 attempts -- unexpected given a 24/25 bust chance per try');
+}
+
 function buildHarness(startingBalance = 1000) {
   const seedStore = new InMemorySeedStore();
   const seedService = createSeedService(seedStore);
@@ -74,17 +100,7 @@ describe('roundService: Mines cash-out flow', () => {
 
   it('busting: hitting a mine sets status BUSTED, payout 0, no balance credit', async () => {
     const { db, ensureUser, roundService } = buildHarness(1000);
-    const userId = 'user-mines-bust';
-    await ensureUser.ensureUser(userId);
-
-    // 24 mines / 1 safe tile makes a bust overwhelmingly likely on the
-    // first reveal, without relying on a specific pinned seed/nonce.
-    const started = await roundService.startMinesRound({ userId, betAmount: 50, mines: 24 });
-    const revealed = await roundService.minesReveal({
-      userId,
-      roundId: started.id,
-      expectedVersion: started.version,
-    });
+    const { userId, revealed } = await startAndBustMinesRound(roundService, ensureUser, 'user-mines-bust', 50);
 
     expect(revealed.status).toBe('BUSTED');
     expect(revealed.payout).toBe(0);
@@ -104,14 +120,11 @@ describe('roundService: Mines cash-out flow', () => {
 
   it('rejects acting on a round that has already busted/cashed out', async () => {
     const { ensureUser, roundService } = buildHarness();
-    const userId = 'user-mines-already-settled';
-    await ensureUser.ensureUser(userId);
-    const started = await roundService.startMinesRound({ userId, betAmount: 10, mines: 24 });
-    const revealed = await roundService.minesReveal({
-      userId,
-      roundId: started.id,
-      expectedVersion: started.version,
-    });
+    const { userId, started, revealed } = await startAndBustMinesRound(
+      roundService,
+      ensureUser,
+      'user-mines-already-settled'
+    );
     expect(revealed.status).toBe('BUSTED');
 
     await expect(
@@ -121,15 +134,30 @@ describe('roundService: Mines cash-out flow', () => {
 
   it('rejects a stale version (concurrency guard)', async () => {
     const { ensureUser, roundService } = buildHarness();
-    const userId = 'user-mines-version-conflict';
-    await ensureUser.ensureUser(userId);
-    const started = await roundService.startMinesRound({ userId, betAmount: 10, mines: 3 });
 
-    await roundService.minesReveal({ userId, roundId: started.id, expectedVersion: started.version });
-    // Retrying with the now-stale original version must be rejected.
-    await expect(
-      roundService.minesReveal({ userId, roundId: started.id, expectedVersion: started.version })
-    ).rejects.toBeInstanceOf(RoundVersionConflictError);
+    // Scan for a userId whose first reveal is safe, so the round is
+    // guaranteed to still be OPEN when the stale retry below runs --
+    // otherwise a bust would make the retry correctly fail for a different
+    // reason (InvalidRoundStateError from assertOpen, not the version
+    // check this test targets).
+    for (let i = 0; i < 50; i++) {
+      const userId = `user-mines-version-conflict-${i}`;
+      await ensureUser.ensureUser(userId);
+      const started = await roundService.startMinesRound({ userId, betAmount: 10, mines: 3 });
+      const revealed = await roundService.minesReveal({
+        userId,
+        roundId: started.id,
+        expectedVersion: started.version,
+      });
+      if (revealed.status !== 'OPEN') continue;
+
+      // Retrying with the now-stale original version must be rejected.
+      await expect(
+        roundService.minesReveal({ userId, roundId: started.id, expectedVersion: started.version })
+      ).rejects.toBeInstanceOf(RoundVersionConflictError);
+      return;
+    }
+    throw new Error('no safe first reveal found within 50 attempts');
   });
 
   it('rejects starting a round with insufficient balance, creates no round', async () => {
@@ -185,7 +213,12 @@ describe('roundService: Blackjack real-time decisions', () => {
     await ensureUser.ensureUser(userId);
 
     let round = await roundService.startBlackjackRound({ userId, betAmount: 100 });
-    expect(db.users.get(userId)!.balance).toBe(900);
+    // Seed material is randomly generated per test run (see InMemorySeedStore
+    // -- ensureSeedState uses real crypto randomness), so this deal can
+    // legitimately be a natural that settles and credits payout immediately
+    // in the same transaction as the debit -- account for that rather than
+    // assuming the round always starts OPEN and uncredited.
+    expect(db.users.get(userId)!.balance).toBeCloseTo(900 + (round.status === 'SETTLED' ? round.payout! : 0), 6);
 
     let guard = 0;
     while (round.status === 'OPEN' && guard < 20) {

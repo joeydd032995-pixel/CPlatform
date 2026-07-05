@@ -43,27 +43,35 @@ describe('POST /api/rounds/mines/* (HTTP layer)', () => {
 
   it('returns 409 with ROUND_VERSION_CONFLICT on a stale version', async () => {
     const { app } = buildTestApp();
-    const userId = 'user-http-mines-conflict';
 
-    const startRes = await request(app)
-      .post('/api/rounds/mines/start')
-      .set('x-user-id', userId)
-      .send({ betAmount: 10, mines: 3 })
-      .expect(200);
+    // Scan for a userId whose first reveal is safe, so the round stays
+    // OPEN and the stale retry unambiguously hits the version check rather
+    // than "already busted" (a different, separately-tested rejection).
+    for (let i = 0; i < 50; i++) {
+      const userId = `user-http-mines-conflict-${i}`;
+      const startRes = await request(app)
+        .post('/api/rounds/mines/start')
+        .set('x-user-id', userId)
+        .send({ betAmount: 10, mines: 3 })
+        .expect(200);
 
-    await request(app)
-      .post(`/api/rounds/mines/${startRes.body.id}/reveal`)
-      .set('x-user-id', userId)
-      .send({ version: startRes.body.version })
-      .expect(200);
+      const revealRes = await request(app)
+        .post(`/api/rounds/mines/${startRes.body.id}/reveal`)
+        .set('x-user-id', userId)
+        .send({ version: startRes.body.version })
+        .expect(200);
+      if (revealRes.body.status !== 'OPEN') continue;
 
-    const staleRes = await request(app)
-      .post(`/api/rounds/mines/${startRes.body.id}/reveal`)
-      .set('x-user-id', userId)
-      .send({ version: startRes.body.version })
-      .expect(409);
+      const staleRes = await request(app)
+        .post(`/api/rounds/mines/${startRes.body.id}/reveal`)
+        .set('x-user-id', userId)
+        .send({ version: startRes.body.version })
+        .expect(409);
 
-    expect(staleRes.body.code).toBe('ROUND_VERSION_CONFLICT');
+      expect(staleRes.body.code).toBe('ROUND_VERSION_CONFLICT');
+      return;
+    }
+    throw new Error('no safe first reveal found within 50 attempts');
   });
 
   it('returns 404 with ROUND_NOT_FOUND for an unknown round id', async () => {
@@ -118,7 +126,14 @@ describe('POST /api/rounds/blackjack/* (HTTP layer)', () => {
       .send({ betAmount: 100 })
       .expect(200);
 
-    expect(db.users.get(userId)!.balance).toBe(900);
+    // Seed material is randomly generated per test run, so this deal can
+    // legitimately be a natural that settles and credits payout immediately
+    // in the same transaction as the debit -- account for that instead of
+    // assuming the round always starts OPEN and uncredited.
+    expect(db.users.get(userId)!.balance).toBeCloseTo(
+      900 + (startRes.body.status === 'SETTLED' ? startRes.body.payout : 0),
+      6
+    );
 
     let body = startRes.body;
     let guard = 0;
