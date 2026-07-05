@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ComponentType } from 'react';
 import { useUser } from '@/lib/user-context';
-import { gameRegistry, loadGameModule, type GameName } from '@/lib/games';
+import { getGameMeta, loadGameModule, type GameName } from '@/lib/games';
 import type { LoadedGameModule } from '@/features/games/types';
 import { RouletteChipProvider } from '@/features/games/roulette/chip-context';
 import { playLabelFor } from '@/lib/play-labels';
@@ -17,7 +17,7 @@ import { controlsLocked, DEALING_PAUSE_MS, type RevealPhase } from './reveal-pha
 import { cn } from '@/lib/utils';
 
 export function GamePage({ game }: { game: GameName }) {
-  const meta = gameRegistry[game];
+  const meta = getGameMeta(game);
   const { userId, refreshBalance } = useUser();
 
   const [gameModule, setGameModule] = useState<LoadedGameModule | null>(null);

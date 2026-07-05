@@ -16,3 +16,10 @@ export type LoadedGameModule = {
   ParamsForm: ComponentType<ParamsFormProps<Record<string, unknown>>>;
   Viz: ComponentType<VizProps<Record<string, unknown>, Record<string, unknown>>>;
 };
+
+export function asLoadedGameModule<P, O>(mod: {
+  ParamsForm: ComponentType<ParamsFormProps<P>>;
+  Viz: ComponentType<VizProps<O, P>>;
+}): LoadedGameModule {
+  return mod as unknown as LoadedGameModule;
+}

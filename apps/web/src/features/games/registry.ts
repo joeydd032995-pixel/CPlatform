@@ -4,6 +4,7 @@ import {
   PlinkoParamsSchema,
   DiceParamsSchema,
   RouletteParamsSchema,
+  type RouletteParams,
   KenoParamsSchema,
   ChickenParamsSchema,
   DartsParamsSchema,
@@ -28,7 +29,7 @@ export type GameRegistryMeta<P = Record<string, unknown>> = {
   deriveBetAmount?: (params: P) => number;
 };
 
-export const gameRegistry: Record<GameName, GameRegistryMeta> = {
+export const gameRegistry = {
   mines: {
     label: 'Mines',
     defaults: minesDefaults,
@@ -48,7 +49,8 @@ export const gameRegistry: Record<GameName, GameRegistryMeta> = {
     label: 'Roulette',
     defaults: rouletteDefaults,
     schema: RouletteParamsSchema,
-    deriveBetAmount: (params) => params.bets.reduce((sum, bet) => sum + bet.amount, 0),
+    deriveBetAmount: (params: RouletteParams) =>
+      params.bets.reduce((sum, bet) => sum + bet.amount, 0),
   },
   keno: {
     label: 'Keno',
@@ -87,5 +89,5 @@ export function isGameName(value: string): value is GameName {
 }
 
 export function getGameMeta(game: GameName): GameRegistryMeta {
-  return gameRegistry[game];
+  return gameRegistry[game] as unknown as GameRegistryMeta;
 }
