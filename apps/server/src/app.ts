@@ -9,7 +9,7 @@ import type { SeedService } from './seedService.js';
 import type { IdempotencyStore } from './idempotency.js';
 import type { RateLimitCounter } from './middleware/rateLimit.js';
 import type { EnsureUser } from './middleware/auth.js';
-import { authStub, devEnsureUser } from './middleware/auth.js';
+import { authStub, ensureUserMiddleware } from './middleware/auth.js';
 import { perUserRateLimit, perIpRateLimit } from './middleware/rateLimit.js';
 import { createJurisdictionGate } from './middleware/jurisdiction.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -102,7 +102,7 @@ export function buildApp(deps: AppDeps): Express {
   app.use('/api/verify', perIpRateLimit(rateLimitStore, { windowSeconds: 10, max: 200 }), createVerifyRouter());
 
   app.use(authStub);
-  app.use(devEnsureUser(ensureUser, env.NODE_ENV));
+  app.use(ensureUserMiddleware(ensureUser));
   app.use(perUserRateLimit(rateLimitStore, { windowSeconds: 10, max: 50 }));
   app.use(perIpRateLimit(rateLimitStore, { windowSeconds: 10, max: 200 }));
 

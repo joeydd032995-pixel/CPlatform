@@ -36,14 +36,12 @@ describe('GET /api/me', () => {
     expect(res.body.code).toBe('UNAUTHENTICATED');
   });
 
-  it('returns 404 when the authenticated user has no row (production, no auto-provisioning)', async () => {
-    // NODE_ENV=production disables devEnsureUser's auto-provisioning (see
-    // middleware/auth.ts), so an x-user-id the stub auth trusts but that
-    // was never actually created hits the "row doesn't exist" branch.
-    const { app } = buildTestApp({ NODE_ENV: 'production' });
+  it('auto-provisions a new user even in production (no separate signup flow exists)', async () => {
+    const { app, db } = buildTestApp({ NODE_ENV: 'production' });
 
-    const res = await request(app).get('/api/me').set('x-user-id', 'never-seen-user').expect(404);
+    const res = await request(app).get('/api/me').set('x-user-id', 'never-seen-user').expect(200);
 
-    expect(res.body).toEqual({ code: 'USER_NOT_FOUND', error: 'User not found' });
+    expect(res.body).toEqual({ userId: 'never-seen-user', balance: 1000 });
+    expect(db.users.get('never-seen-user')?.balance).toBe(1000);
   });
 });

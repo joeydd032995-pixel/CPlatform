@@ -28,9 +28,9 @@ RUN npm ci --include=dev
 # network — see the note at the top of this file).
 RUN npm run --workspace @cplatform/db prisma:generate
 
-# devEnsureUser auto-provisions a user with a starting balance only when
-# NODE_ENV !== 'production' (see apps/server/src/middleware/auth.ts), which
-# is what makes the platform immediately playable in this demo deployment.
+# NODE_ENV=development here mainly relaxes createApp.ts's production-only
+# CORS_ORIGIN requirement for this demo deployment (account auto-provisioning
+# in middleware/auth.ts now happens in every environment, not gated by this).
 # docker-compose.yml sets this too; kept here so the image is usable stand-alone.
 ENV NODE_ENV=development
 EXPOSE 4000
