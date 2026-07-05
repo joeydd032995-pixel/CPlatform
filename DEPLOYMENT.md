@@ -56,6 +56,29 @@ docker compose down        # stop everything, keep the database volume
 docker compose down -v     # also wipe Postgres data (fresh start)
 ```
 
+## Deploying to Vercel
+
+`apps/web` and `apps/server` are two separate Vercel projects (`c-platform-web`,
+`c-platform-server`), each with its own domain — there's no shared network
+namespace like docker-compose's service names, so the web app has to be told
+the server's URL explicitly.
+
+- **`c-platform-web`'s `API_PROXY_URL` must be set to `c-platform-server`'s
+  Production domain** (Vercel dashboard → `c-platform-server` project →
+  Domains tab → the one listed under "Production", not a `-git-<branch>-`
+  preview URL) as a **Build**-time environment variable on the
+  `c-platform-web` project. `next.config.ts`'s rewrite resolves this at
+  `next build` time, not per-request, so it has to be set *before* building —
+  changing it requires a fresh production deployment (redeploy) of
+  `c-platform-web` to take effect. Left unset, it silently falls back to
+  `http://localhost:4000` (the docker-compose/local-dev default), which
+  doesn't exist in Vercel's environment — every `/api/*` request from the
+  browser fails outright (shows up as the header's balance stuck on `--`).
+- `c-platform-server`'s production environment needs `CORS_ORIGIN` set (the
+  server fails fast at boot in production if it's unset — see `CLAUDE.md`)
+  and, if you want a Postgres/Redis-backed deployment, `DATABASE_URL`/
+  `REDIS_URL` pointing at real managed instances.
+
 ## Notes & troubleshooting
 
 - **Ports in use?** The published ports (3000, 4000, 5432, 6379) are bound to
