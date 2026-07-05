@@ -17,8 +17,8 @@ export default function HomePage() {
             <span className="text-muted-foreground">Verify every outcome.</span>
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-muted-foreground">
-            Nine casino games powered by HMAC-SHA256 RNG. Commit your server seed hash before you
-            play, then independently verify any bet after rotation.
+            {GAME_NAMES.length} casino games powered by HMAC-SHA256 RNG. Commit your server seed
+            hash before you play, then independently verify any bet after rotation.
           </p>
         </div>
 

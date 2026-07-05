@@ -13,14 +13,18 @@ import { GameShell, ControlsSection } from './GameShell';
 import { GameSurface } from './GameSurface';
 import { GameSessionHeader } from './GameSessionHeader';
 import { GamePageSkeleton } from './GamePageSkeleton';
+import { ErrorBoundary } from './ErrorBoundary';
 import { controlsLocked, DEALING_PAUSE_MS, type RevealPhase } from './reveal-phase';
 import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 export function GamePage({ game }: { game: GameName }) {
   const meta = getGameMeta(game);
   const { userId, refreshBalance } = useUser();
 
   const [gameModule, setGameModule] = useState<LoadedGameModule | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [params, setParams] = useState(meta.defaults);
   const [result, setResult] = useState<PlayGameResult | null>(null);
   const [clientSeed, setClientSeed] = useState<string>('');
@@ -28,16 +32,24 @@ export function GamePage({ game }: { game: GameName }) {
 
   const locked = controlsLocked(phase);
 
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     setGameModule(null);
-    void loadGameModule(game).then((mod) => {
-      if (!cancelled) setGameModule(mod);
-    });
+    setLoadError(false);
+    loadGameModule(game).then(
+      (mod) => {
+        if (!cancelled) setGameModule(mod);
+      },
+      () => {
+        if (!cancelled) setLoadError(true);
+      }
+    );
     return () => {
       cancelled = true;
     };
-  }, [game]);
+  }, [game, loadAttempt]);
 
   useEffect(() => {
     setParams(meta.defaults);
@@ -47,9 +59,17 @@ export function GamePage({ game }: { game: GameName }) {
 
   useEffect(() => {
     if (!userId) return;
+    let cancelled = false;
     getSeeds(userId)
-      .then((state) => setClientSeed(state.clientSeed))
-      .catch(() => setClientSeed(''));
+      .then((state) => {
+        if (!cancelled) setClientSeed(state.clientSeed);
+      })
+      .catch(() => {
+        if (!cancelled) setClientSeed('');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userId, result]);
 
   useEffect(() => {
@@ -62,6 +82,21 @@ export function GamePage({ game }: { game: GameName }) {
     setResult(next);
     setPhase('dealing');
   };
+
+  if (loadError) {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-3">
+          <Alert variant="destructive">
+            <AlertDescription>Failed to load {meta.label}. Please try again.</AlertDescription>
+          </Alert>
+          <Button className="w-fit" onClick={() => setLoadAttempt((n) => n + 1)}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!gameModule) {
     return <GamePageSkeleton title={meta.label} />;
@@ -126,7 +161,9 @@ export function GamePage({ game }: { game: GameName }) {
       )}
     >
       <GameSessionHeader title={meta.label} phase={phase} clientSeed={clientSeed} />
-      {game === 'roulette' ? <RouletteChipProvider>{shell}</RouletteChipProvider> : shell}
+      <ErrorBoundary>
+        {game === 'roulette' ? <RouletteChipProvider>{shell}</RouletteChipProvider> : shell}
+      </ErrorBoundary>
     </div>
   );
 }

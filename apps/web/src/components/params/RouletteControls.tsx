@@ -67,7 +67,7 @@ export function RouletteControls({
               const text = e.target.value;
               setCustomChipText(text);
               const n = Number(text);
-              if (Number.isFinite(n) && n > 0) setSelectedChip(n);
+              if (Number.isFinite(n) && n > 0) setSelectedChip(Math.round(n * 100) / 100);
             }}
             className="h-9 w-24"
           />

@@ -47,4 +47,24 @@ describe('useRevealSequence', () => {
     expect(result.current).toBe(3);
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+
+  it('jumps to total and completes immediately when reduced motion is preferred, even when staged', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    });
+
+    const onComplete = vi.fn();
+    const { result } = renderHook(() =>
+      useRevealSequence({ total: 3, intervalMs: 100, staged: true, onRevealComplete: onComplete })
+    );
+
+    expect(result.current).toBe(3);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
 });

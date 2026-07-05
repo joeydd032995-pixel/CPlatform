@@ -17,8 +17,51 @@ import {
   numberAt,
 } from '@/lib/roulette-felt';
 import { useRouletteChip } from '@/features/games/roulette/chip-context';
-import { FeltChip } from '@/components/viz/FeltChip';
+import { FeltChip, formatChipAmount } from '@/components/viz/FeltChip';
 import { cn } from '@/lib/utils';
+
+type FeltOverlay = { numbers: number[]; left: number; top: number };
+
+function OverlayButtons({
+  overlays,
+  betType,
+  ariaPrefix,
+  joiner,
+  keyPrefix,
+  bets,
+  disabled,
+  onPlaceBet,
+}: {
+  overlays: readonly FeltOverlay[];
+  betType: RouletteBetType;
+  ariaPrefix: string;
+  joiner: string;
+  keyPrefix: string;
+  bets: RouletteParams['bets'];
+  disabled: boolean;
+  onPlaceBet: (betType: RouletteBetType, numbers: number[]) => void;
+}) {
+  return (
+    <>
+      {overlays.map((o) => (
+        <button
+          key={`${keyPrefix}-${o.numbers.join('-')}`}
+          type="button"
+          disabled={disabled}
+          aria-label={`${ariaPrefix} ${o.numbers.join(joiner)}`}
+          onClick={() => onPlaceBet(betType, o.numbers)}
+          className={cn(
+            'pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-yellow-400/90 text-[7px] font-bold text-yellow-950 ring-1 ring-yellow-200 hover:bg-yellow-300',
+            disabled && 'pointer-events-none opacity-60'
+          )}
+          style={{ left: `${o.left}%`, top: `${o.top}%` }}
+        >
+          {formatChipAmount(amountForBet(bets, betType, o.numbers))}
+        </button>
+      ))}
+    </>
+  );
+}
 
 export function RouletteFelt({
   value,
@@ -89,70 +132,46 @@ export function RouletteFelt({
           </div>
 
           <div className="pointer-events-none absolute inset-0">
-            {SPLIT_OVERLAYS.map((o) => (
-              <button
-                key={`split-${o.numbers.join('-')}`}
-                type="button"
-                disabled={disabled}
-                aria-label={`Split bet on ${o.numbers.join(' and ')}`}
-                onClick={() => placeBet('split', o.numbers)}
-                className={cn(
-                  'pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-yellow-400/90 text-[7px] font-bold text-yellow-950 ring-1 ring-yellow-200 hover:bg-yellow-300',
-                  disabled && 'pointer-events-none opacity-60'
-                )}
-                style={{ left: `${o.left}%`, top: `${o.top}%` }}
-              >
-                {amountForBet(value.bets, 'split', o.numbers) || ''}
-              </button>
-            ))}
-            {STREET_OVERLAYS.map((o) => (
-              <button
-                key={`street-${o.numbers.join('-')}`}
-                type="button"
-                disabled={disabled}
-                aria-label={`Street bet on ${o.numbers.join(', ')}`}
-                onClick={() => placeBet('street', o.numbers)}
-                className={cn(
-                  'pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-yellow-400/90 text-[7px] font-bold text-yellow-950 ring-1 ring-yellow-200 hover:bg-yellow-300',
-                  disabled && 'pointer-events-none opacity-60'
-                )}
-                style={{ left: `${o.left}%`, top: `${o.top}%` }}
-              >
-                {amountForBet(value.bets, 'street', o.numbers) || ''}
-              </button>
-            ))}
-            {SIX_LINE_OVERLAYS.map((o) => (
-              <button
-                key={`sixline-${o.numbers.join('-')}`}
-                type="button"
-                disabled={disabled}
-                aria-label={`Six line bet on ${o.numbers.join(', ')}`}
-                onClick={() => placeBet('six-line', o.numbers)}
-                className={cn(
-                  'pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-yellow-400/90 text-[7px] font-bold text-yellow-950 ring-1 ring-yellow-200 hover:bg-yellow-300',
-                  disabled && 'pointer-events-none opacity-60'
-                )}
-                style={{ left: `${o.left}%`, top: `${o.top}%` }}
-              >
-                {amountForBet(value.bets, 'six-line', o.numbers) || ''}
-              </button>
-            ))}
-            {CORNER_OVERLAYS.map((o) => (
-              <button
-                key={`corner-${o.numbers.join('-')}`}
-                type="button"
-                disabled={disabled}
-                aria-label={`Corner bet on ${o.numbers.join(', ')}`}
-                onClick={() => placeBet('corner', o.numbers)}
-                className={cn(
-                  'pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-yellow-400/90 text-[7px] font-bold text-yellow-950 ring-1 ring-yellow-200 hover:bg-yellow-300',
-                  disabled && 'pointer-events-none opacity-60'
-                )}
-                style={{ left: `${o.left}%`, top: `${o.top}%` }}
-              >
-                {amountForBet(value.bets, 'corner', o.numbers) || ''}
-              </button>
-            ))}
+            <OverlayButtons
+              overlays={SPLIT_OVERLAYS}
+              betType="split"
+              ariaPrefix="Split bet on"
+              joiner=" and "
+              keyPrefix="split"
+              bets={value.bets}
+              disabled={disabled}
+              onPlaceBet={placeBet}
+            />
+            <OverlayButtons
+              overlays={STREET_OVERLAYS}
+              betType="street"
+              ariaPrefix="Street bet on"
+              joiner=", "
+              keyPrefix="street"
+              bets={value.bets}
+              disabled={disabled}
+              onPlaceBet={placeBet}
+            />
+            <OverlayButtons
+              overlays={SIX_LINE_OVERLAYS}
+              betType="six-line"
+              ariaPrefix="Six line bet on"
+              joiner=", "
+              keyPrefix="sixline"
+              bets={value.bets}
+              disabled={disabled}
+              onPlaceBet={placeBet}
+            />
+            <OverlayButtons
+              overlays={CORNER_OVERLAYS}
+              betType="corner"
+              ariaPrefix="Corner bet on"
+              joiner=", "
+              keyPrefix="corner"
+              bets={value.bets}
+              disabled={disabled}
+              onPlaceBet={placeBet}
+            />
           </div>
         </div>
 

@@ -147,7 +147,7 @@ export function BetForm({
         aria-busy={disabled}
       >
         <h2 className="text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-          Place Bet
+          {playLabel}
         </h2>
         {formBody}
       </section>
@@ -157,7 +157,7 @@ export function BetForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Place Bet</CardTitle>
+        <CardTitle>{playLabel}</CardTitle>
       </CardHeader>
       <CardContent>{formBody}</CardContent>
     </Card>

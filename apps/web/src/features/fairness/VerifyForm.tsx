@@ -173,9 +173,9 @@ export function VerifyForm({
       <Card>
         <CardContent className="flex flex-col gap-4 pt-6">
           <div className="flex flex-col gap-1.5">
-            <Label>Game</Label>
+            <Label htmlFor="verify-game">Game</Label>
             <Select value={game} onValueChange={(v) => handleGameChange(v as GameName)}>
-              <SelectTrigger>
+              <SelectTrigger id="verify-game">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -189,8 +189,9 @@ export function VerifyForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Server seed (64-char hex)</Label>
+            <Label htmlFor="verify-server-seed">Server seed (64-char hex)</Label>
             <Input
+              id="verify-server-seed"
               type="text"
               value={serverSeed}
               onChange={(e) => setServerSeed(e.target.value)}
@@ -200,8 +201,9 @@ export function VerifyForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Client seed</Label>
+            <Label htmlFor="verify-client-seed">Client seed</Label>
             <Input
+              id="verify-client-seed"
               type="text"
               value={clientSeed}
               onChange={(e) => setClientSeed(e.target.value)}
@@ -211,8 +213,9 @@ export function VerifyForm({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Nonce</Label>
+            <Label htmlFor="verify-nonce">Nonce</Label>
             <Input
+              id="verify-nonce"
               type="number"
               min={0}
               value={nonce}

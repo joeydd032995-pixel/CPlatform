@@ -97,6 +97,7 @@ Premium game UIs (chess.com, stake.com) separate **decision rail** (narrow, scro
 - **Option 3:** Design debt compounds; roulette remains unusable on mobile
 
 ### Confidence calibration
+
 | Claim | Confidence | What would change it |
 |-------|------------|----------------------|
 | GameShell wiring is highest leverage | **High** | User wants lobby-only polish |
@@ -121,7 +122,7 @@ Premium game UIs (chess.com, stake.com) separate **decision rail** (narrow, scro
 
 ## Target Architecture
 
-```
+```text
 src/
 ├── app/                          # Thin routes + loading.tsx skeletons
 ├── components/ui/                # shadcn primitives (trim unused in P2)
@@ -234,7 +235,7 @@ src/
 ### PR5 — Roulette overhaul
 **Priority:** P0 | **Est:** 2–3 days
 
-- [ ] Extract `lib/roulette-felt.tsx` from `RouletteParamsForm`
+- [ ] Extract `lib/roulette-felt.ts` from `RouletteParamsForm`
 - [ ] `RouletteControls` (chips, bet list) in rail
 - [ ] `RouletteFelt` interactive surface (idle + post-bet highlights)
 - [ ] Chip stacks on felt cells

@@ -16,10 +16,16 @@ const ZONE_LEGEND: Array<{ name: DartsOutcome['zone']; multiplier: number }> = [
   { name: 'rim', multiplier: 0.1 },
 ];
 
+// The board below is rendered at a fixed h-64/w-64 (256px), so its radius is
+// 128px. CSS translate(X%) resolves against the translated element's own box
+// (the tiny 10px marker), not the board, so a percentage here barely moves the
+// dart -- use a board-relative pixel radius instead.
+const BOARD_RADIUS_PX = 128;
+
 function dartTransform(distance: number, rotation: number): string {
   const angleDeg = rotation * 360;
-  const radiusPct = Math.min(distance / 0.5, 1) * 45;
-  return `rotate(${angleDeg}deg) translate(${radiusPct}%) rotate(-${angleDeg}deg)`;
+  const radiusPx = Math.min(distance / 0.5, 1) * BOARD_RADIUS_PX * 0.9;
+  return `rotate(${angleDeg}deg) translate(${radiusPx}px) rotate(-${angleDeg}deg)`;
 }
 
 export function DartsBoard({

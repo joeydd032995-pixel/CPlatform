@@ -17,8 +17,6 @@ export function playLoadingLabel(label: string): string {
       return 'SPINNING...';
     case 'DEAL':
       return 'DEALING...';
-    case 'PLACE BET':
-      return 'PLACING BET...';
     default:
       return 'PLACING BET...';
   }

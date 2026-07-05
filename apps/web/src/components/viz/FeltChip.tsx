@@ -1,9 +1,14 @@
 import { cn } from '@/lib/utils';
 
+export function formatChipAmount(amount: number): string {
+  if (amount <= 0) return '';
+  return amount >= 1000 ? `${Math.round(amount / 1000)}k` : String(amount);
+}
+
 export function FeltChip({ amount, className }: { amount: number; className?: string }) {
   if (amount <= 0) return null;
 
-  const label = amount >= 1000 ? `${Math.round(amount / 1000)}k` : String(amount);
+  const label = formatChipAmount(amount);
 
   return (
     <span

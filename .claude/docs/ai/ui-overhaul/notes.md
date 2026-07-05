@@ -55,6 +55,7 @@
 - Verify page loads all Vizzes (High)
 
 ### Guideline adaptations (frontend-dev-guidelines → CPlatform)
+
 | Guideline (MUI stack) | CPlatform equivalent |
 |-----------------------|----------------------|
 | features/ directory | `src/features/{shell,games,lobby,fairness}/` |

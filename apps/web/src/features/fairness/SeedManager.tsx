@@ -75,10 +75,27 @@ export function SeedManager() {
   if (!userId || !state) {
     return (
       <PageShell title="Seeds" description="Manage your provably-fair seed pair.">
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-24 w-full rounded-xl" />
-        </div>
+        {error ? (
+          <div className="flex flex-col gap-3">
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <Button
+              onClick={() => {
+                setError(null);
+                if (userId) load(userId).catch(() => setError('Failed to load seed state.'));
+              }}
+              className="w-fit"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-32 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
+        )}
       </PageShell>
     );
   }
@@ -106,6 +123,7 @@ export function SeedManager() {
         <CardContent className="flex flex-col gap-3">
           <Input
             type="text"
+            aria-label="Client seed"
             value={clientSeedInput}
             onChange={(e) => setClientSeedInput(e.target.value)}
             maxLength={64}
