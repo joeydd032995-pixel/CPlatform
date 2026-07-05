@@ -20,18 +20,39 @@ graph TD
     API --> Auth[Auth + Rate Limit Redis]
     API --> SeedService[SeedService Redis/Postgres]
     API --> GameService[GameService + Queues]
+    API --> RoundService[RoundService: multi-request rounds]
     GameService --> RNG[Core RNG]
+    RoundService --> RNG
     GameService --> Games[Games Modules]
-    Games --> DB[(PostgreSQL: Bets, Seeds, Users)]
+    RoundService --> Games
+    Games --> DB[(PostgreSQL: Bets, Rounds, Seeds, Users)]
     API --> Verifier[Public Verification Service]
     Verifier --> RNG
     Monitoring[Sentry + Prometheus] --> All
 ```
 
+Two request shapes coexist by design:
+
+- **One-shot bets** (Dice, Plinko, Roulette, Keno, HiLo, Chicken, Darts, and the
+  original Mines "pick-count" mode): `POST /api/games/:game` → `gameService.playGame()`
+  settles the entire bet in one request/transaction.
+- **Multi-request rounds** (Mines cash-out, Blackjack real-time decisions):
+  `POST /api/rounds/...` → `roundService` persists an in-progress `Round` row and
+  settles it across several requests (reveal/hit/stand/etc.), guarded by an
+  optimistic-concurrency `version` column (compare-and-swap on
+  `{ id, userId, version: expectedVersion }`; a mismatch throws
+  `RoundVersionConflictError`, 409, and the client refetches/retries). See
+  `apps/server/src/roundService.ts` and `packages/games/src/{mines,blackjack}.ts`
+  (the `*RoundState`/`deriveMinesRoundState`/`dealInitial`/`playerHit` etc. primitives).
+  This is purely additive — the one-shot path for every other game is unchanged.
+
 ## Roadmap
 
 - **Phase 1 (MVP)**: Core RNG, 4 games (Mines, Plinko, Dice, Roulette), seed service, basic API/frontend.
 - **Phase 2**: Remaining games (Blackjack, HiLo, Keno, Chicken, Darts), payments, auth, admin panel.
+- **Phase 2.5 (done)**: Round-state architecture (`Round` Prisma model, `roundService`,
+  `/api/rounds/*`, round-aware `/api/verify/round`) for Mines cash-out and Blackjack
+  real-time decisions (hit/stand/double/split/insurance, capped at one split).
 - **Phase 3**: Multiplayer, analytics, third-party fairness audit, launch.
 
 ## Orchestration (this session acts as the Master Orchestrator)
@@ -84,6 +105,17 @@ deliberate, documented exceptions — do not "normalize" these back to 0.99:
   on top double-counted the edge (the M7 bug fix).
 - **Blackjack ≈ 0.9723 RTP.** Rule- and basic-strategy-determined, not a free
   parameter; pinned as a regression constant in its tests.
+
+## Fairness verification for multi-request rounds
+
+One-shot games verify by recomputing "the one true outcome" from
+`(serverSeed, clientSeed, nonce)`. Rounds (Mines cash-out, Blackjack decisions)
+verify differently: the same `(serverSeed, clientSeed, nonce, startParams)` fixes
+a *family* of possible outcomes, one per decision path, and `/api/verify/round`
+proves fairness by replaying the round's exact recorded `actionLog` through the
+same pure primitives (`apps/server/src/roundVerify.ts`) and checking it reproduces
+the persisted final state — not a weaker guarantee, just a different one, and the
+verify-page copy calls this out explicitly so it doesn't read as a regression.
 
 ## Known open items / deferred pre-launch hardening
 

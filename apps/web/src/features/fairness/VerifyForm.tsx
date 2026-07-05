@@ -186,6 +186,19 @@ export function VerifyForm({
                 ))}
               </SelectContent>
             </Select>
+            {(game === 'mines' || game === 'blackjack') && (
+              <p className="text-xs text-muted-foreground">
+                This verifier recomputes a single one-shot bet. A cashed-out Mines
+                round or a Blackjack round with real hit/stand/double/split
+                decisions is verified differently: the seeds and starting
+                parameters fix a <em>family</em> of possible outcomes (one per
+                decision path), and fairness is proven by replaying the round's
+                exact recorded decisions via <code>POST /api/verify/round</code>{' '}
+                and confirming it reproduces the same final result — not a
+                weaker guarantee than one-shot verification, just a different
+                one suited to a bet that spans multiple decisions.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
