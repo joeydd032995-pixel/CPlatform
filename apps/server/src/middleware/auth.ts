@@ -33,21 +33,24 @@ export function authStub(req: Request, res: Response, next: NextFunction): void 
   next();
 }
 
-// Minimal shape needed to auto-provision a dev/test user the first time we
-// see their id, so local/dev/testing doesn't require a separate signup
-// flow. Real production wiring (src/index.ts) implements this via
-// `prisma.user.upsert`.
+// Minimal shape needed to auto-provision a user the first time we see their
+// id, so there's no separate signup flow. Real wiring (createApp.ts)
+// implements this via `prisma.user.upsert`.
 export interface EnsureUser {
   ensureUser(userId: string): Promise<void>;
 }
 
-// Auto-provisions a starting balance for any never-seen-before user id, but
-// ONLY outside production — in production, account creation should go
-// through a real signup flow, not be implicitly created by whatever id a
-// caller happens to send.
-export function devEnsureUser(deps: EnsureUser, nodeEnv: string): RequestHandler {
-  return function devEnsureUserMiddleware(req: Request, res: Response, next: NextFunction): void {
-    if (nodeEnv === 'production' || !req.userId) {
+// Auto-provisions a starting balance for any never-seen-before user id, in
+// every environment including production -- this auth stub has no signup
+// flow to fall back to, so gating provisioning by NODE_ENV would just leave
+// production visitors with no account and no way to get one. This is only
+// safe because the auth stub already trusts a client-supplied `x-user-id`
+// header everywhere (see authStub above); real session-based auth replacing
+// that stub (the top pre-launch blocker tracked in CLAUDE.md) is what should
+// gate account creation behind a real signup flow, not NODE_ENV.
+export function ensureUserMiddleware(deps: EnsureUser): RequestHandler {
+  return function ensureUserMiddlewareHandler(req: Request, res: Response, next: NextFunction): void {
+    if (!req.userId) {
       next();
       return;
     }
