@@ -76,10 +76,18 @@ export function createVerifyRouter(): Router {
       const { game, startParams, actionLog, serverSeed, clientSeed, nonce } = body;
       const generatorOpts: GeneratorOptions = { serverSeed, clientSeed, nonce };
 
+      // Same class of environment-only type-resolution discrepancy as the
+      // NODE_ENV/helmet casts elsewhere in this app: locally (and in CI) the
+      // passthrough schema's `type` field infers as required, but a fresh
+      // install (e.g. Vercel's build) has resolved a zod version where it's
+      // optional instead. The runtime value is guaranteed by
+      // `RoundActionLogEntrySchema`'s `z.string()` regardless of which way
+      // it infers, so this cast is safe.
+      const typedActionLog = actionLog as { type: string }[];
       const result =
         game === 'mines'
-          ? replayMinesRound(generatorOpts, startParams, actionLog)
-          : replayBlackjackRound(generatorOpts, actionLog);
+          ? replayMinesRound(generatorOpts, startParams, typedActionLog)
+          : replayBlackjackRound(generatorOpts, typedActionLog);
 
       res.status(200).json({
         verified: true,
