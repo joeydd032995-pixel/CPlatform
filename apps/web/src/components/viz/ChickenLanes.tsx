@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { ChickenOutcome } from '@/lib/types';
 import type { ChickenParams } from '@/lib/params';
 import { CHICKEN_LANES_COUNT } from '@/lib/params';
-
-const STEP_INTERVAL_MS = 220;
+import { REVEAL_TIMING } from '@/lib/reveal-timing';
+import { useRevealSequence } from '@/hooks/use-reveal-sequence';
+import { cn } from '@/lib/utils';
 
 // Staged reveal: the server already returned the full outcome (deathPoint +
 // win) in one response -- `lanes` was fixed at submit time, there is no
@@ -23,30 +23,18 @@ export function ChickenLanes({
   onRevealComplete?: () => void;
 }) {
   const targetLanes = params?.lanes ?? 0;
-  // How far the chicken actually got: all the way if it won, otherwise it
-  // stopped at deathPoint.
   const finalReach = outcome.win ? targetLanes : Math.min(outcome.deathPoint, targetLanes);
 
-  const [current, setCurrent] = useState(staged ? 0 : finalReach);
+  const current = useRevealSequence({
+    total: finalReach,
+    intervalMs: REVEAL_TIMING.chicken,
+    staged,
+    onRevealComplete,
+    resetKey: outcome,
+  });
 
-  useEffect(() => {
-    if (!staged) {
-      setCurrent(finalReach);
-      return;
-    }
-    setCurrent(0);
-    let step = 0;
-    const timer = setInterval(() => {
-      step += 1;
-      setCurrent(step);
-      if (step >= finalReach) {
-        clearInterval(timer);
-        onRevealComplete?.();
-      }
-    }, STEP_INTERVAL_MS);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staged, finalReach]);
+  const revealComplete = current >= finalReach;
+  const showDeathPulse = revealComplete && !outcome.win;
 
   const lanes = Array.from({ length: CHICKEN_LANES_COUNT }, (_, index) => index + 1);
 
@@ -63,7 +51,10 @@ export function ChickenLanes({
           if (isDeathPoint) {
             classes += outcome.win
               ? 'bg-card border-red-600 text-red-400'
-              : 'bg-red-600 border-red-400 text-white';
+              : cn(
+                  'bg-red-600 border-red-400 text-white',
+                  showDeathPulse && 'animate-death-pulse'
+                );
           } else if (isAdvanced && !isPastDeath) {
             classes += 'bg-emerald-600 border-emerald-400 text-white';
           } else if (isAdvanced) {
@@ -78,8 +69,17 @@ export function ChickenLanes({
               data-testid={`chicken-lane-${lane}`}
               data-death-point={isDeathPoint}
               data-advanced={isAdvanced}
-              className={classes}
+              className={cn(classes, 'relative')}
             >
+              {lane === current && current > 0 && (
+                <span
+                  data-testid="chicken-marker"
+                  className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 text-xl"
+                  aria-hidden
+                >
+                  🐔
+                </span>
+              )}
               {lane}
             </div>
           );
@@ -87,9 +87,11 @@ export function ChickenLanes({
       </div>
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">Death point: {outcome.deathPoint}</span>
-        <span className={outcome.win ? 'font-bold text-emerald-400' : 'font-bold text-red-400'}>
-          {outcome.win ? 'WIN' : 'LOSE'}
-        </span>
+        {revealComplete && (
+          <span className={outcome.win ? 'font-bold text-emerald-400' : 'font-bold text-red-400'}>
+            {outcome.win ? 'WIN' : 'LOSE'}
+          </span>
+        )}
       </div>
     </div>
   );

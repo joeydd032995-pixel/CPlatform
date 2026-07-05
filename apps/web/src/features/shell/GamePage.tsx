@@ -1,0 +1,169 @@
+'use client';
+
+import { useEffect, useState, type ComponentType } from 'react';
+import { useUser } from '@/lib/user-context';
+import { getGameMeta, loadGameModule, type GameName } from '@/lib/games';
+import type { LoadedGameModule } from '@/features/games/types';
+import { RouletteChipProvider } from '@/features/games/roulette/chip-context';
+import { playLabelFor } from '@/lib/play-labels';
+import { getSeeds } from '@/lib/api-client';
+import type { PlayGameResult } from '@/lib/types';
+import { BetForm } from '@/components/BetForm';
+import { GameShell, ControlsSection } from './GameShell';
+import { GameSurface } from './GameSurface';
+import { GameSessionHeader } from './GameSessionHeader';
+import { GamePageSkeleton } from './GamePageSkeleton';
+import { ErrorBoundary } from './ErrorBoundary';
+import { controlsLocked, DEALING_PAUSE_MS, type RevealPhase } from './reveal-phase';
+import { cn } from '@/lib/utils';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+
+export function GamePage({ game }: { game: GameName }) {
+  const meta = getGameMeta(game);
+  const { userId, refreshBalance } = useUser();
+
+  const [gameModule, setGameModule] = useState<LoadedGameModule | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [params, setParams] = useState(meta.defaults);
+  const [result, setResult] = useState<PlayGameResult | null>(null);
+  const [clientSeed, setClientSeed] = useState<string>('');
+  const [phase, setPhase] = useState<RevealPhase>('idle');
+
+  const locked = controlsLocked(phase);
+
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setGameModule(null);
+    setLoadError(false);
+    loadGameModule(game).then(
+      (mod) => {
+        if (!cancelled) setGameModule(mod);
+      },
+      () => {
+        if (!cancelled) setLoadError(true);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [game, loadAttempt]);
+
+  useEffect(() => {
+    setParams(meta.defaults);
+    setResult(null);
+    setPhase('idle');
+  }, [game, meta.defaults]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    getSeeds(userId)
+      .then((state) => {
+        if (!cancelled) setClientSeed(state.clientSeed);
+      })
+      .catch(() => {
+        if (!cancelled) setClientSeed('');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, result]);
+
+  useEffect(() => {
+    if (phase !== 'dealing') return;
+    const timer = setTimeout(() => setPhase('revealing'), DEALING_PAUSE_MS);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
+  const handleResult = (next: PlayGameResult) => {
+    setResult(next);
+    setPhase('dealing');
+  };
+
+  if (loadError) {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-3">
+          <Alert variant="destructive">
+            <AlertDescription>Failed to load {meta.label}. Please try again.</AlertDescription>
+          </Alert>
+          <Button className="w-fit" onClick={() => setLoadAttempt((n) => n + 1)}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!gameModule) {
+    return <GamePageSkeleton title={meta.label} />;
+  }
+
+  const ParamsForm = gameModule.ParamsForm;
+  const Viz = gameModule.Viz;
+
+  const shell = (
+    <GameShell
+      controls={
+        <>
+          <ControlsSection title={game === 'roulette' ? 'Chips & Bets' : 'Parameters'} locked={locked}>
+            <ParamsForm value={params} onChange={setParams} />
+          </ControlsSection>
+
+          {userId && (
+            <BetForm
+              game={game}
+              userId={userId}
+              params={params}
+              paramsSchema={meta.schema}
+              onResult={handleResult}
+              refreshBalance={refreshBalance}
+              derivedBetAmount={meta.deriveBetAmount?.(params)}
+              variant="inline"
+              disabled={locked}
+              playLabel={playLabelFor(game)}
+            />
+          )}
+        </>
+      }
+      surface={
+        <GameSurface
+          gameLabel={meta.label}
+          game={game}
+          phase={phase}
+          params={params}
+          result={result}
+          clientSeed={clientSeed}
+          onParamsChange={setParams}
+          controlsDisabled={locked}
+          Viz={
+            Viz as ComponentType<{
+              outcome: Record<string, unknown>;
+              params: Record<string, unknown>;
+              staged?: boolean;
+              onRevealComplete?: () => void;
+            }>
+          }
+          onRevealComplete={() => setPhase('done')}
+        />
+      }
+    />
+  );
+
+  return (
+    <div
+      className={cn(
+        'mx-auto w-full px-4 py-8 sm:px-6 lg:px-8',
+        game === 'roulette' ? 'max-w-7xl' : 'max-w-6xl'
+      )}
+    >
+      <GameSessionHeader title={meta.label} phase={phase} clientSeed={clientSeed} />
+      <ErrorBoundary>
+        {game === 'roulette' ? <RouletteChipProvider>{shell}</RouletteChipProvider> : shell}
+      </ErrorBoundary>
+    </div>
+  );
+}

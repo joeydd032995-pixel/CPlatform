@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { DartsOutcome } from '@/lib/types';
 import type { DartsParams } from '@/lib/params';
 import { MultiplierChip } from '@/components/games/GameShell';
+import { REVEAL_TIMING } from '@/lib/reveal-timing';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { cn } from '@/lib/utils';
 
-// Conic-gradient dartboard ported visually from the gameframe-studio-x
-// reference; single-reveal (empty params, one throw, no natural staged
-// narrative). Rotation/distance come straight from the already-resolved
-// outcome -- the dart position/spin isn't randomized client-side.
 const ZONE_LEGEND: Array<{ name: DartsOutcome['zone']; multiplier: number }> = [
   { name: 'bullseye', multiplier: 15 },
   { name: 'inner', multiplier: 4 },
@@ -17,8 +16,21 @@ const ZONE_LEGEND: Array<{ name: DartsOutcome['zone']; multiplier: number }> = [
   { name: 'rim', multiplier: 0.1 },
 ];
 
+// The board below is rendered at a fixed h-64/w-64 (256px), so its radius is
+// 128px. CSS translate(X%) resolves against the translated element's own box
+// (the tiny 10px marker), not the board, so a percentage here barely moves the
+// dart -- use a board-relative pixel radius instead.
+const BOARD_RADIUS_PX = 128;
+
+function dartTransform(distance: number, rotation: number): string {
+  const angleDeg = rotation * 360;
+  const radiusPx = Math.min(distance / 0.5, 1) * BOARD_RADIUS_PX * 0.9;
+  return `rotate(${angleDeg}deg) translate(${radiusPx}px) rotate(-${angleDeg}deg)`;
+}
+
 export function DartsBoard({
   outcome,
+  staged = false,
   onRevealComplete,
 }: {
   outcome: DartsOutcome;
@@ -26,14 +38,43 @@ export function DartsBoard({
   staged?: boolean;
   onRevealComplete?: () => void;
 }) {
+  const reducedMotion = useReducedMotion();
+  const skipAnimation = !staged || reducedMotion;
   const { distance, rotation, zone } = outcome;
-  const angleDeg = rotation * 360;
-  // distance is in [0, 0.5) units where 0.5 maps to the board's outer rim.
-  const radiusPct = Math.min(distance / 0.5, 1) * 45;
+
+  const [progress, setProgress] = useState(skipAnimation ? 1 : 0);
+  const [landed, setLanded] = useState(skipAnimation);
 
   useEffect(() => {
-    onRevealComplete?.();
-  }, [onRevealComplete]);
+    if (skipAnimation) {
+      setProgress(1);
+      setLanded(true);
+      onRevealComplete?.();
+      return;
+    }
+
+    setProgress(0);
+    setLanded(false);
+    const { steps, stepMs } = REVEAL_TIMING.darts;
+    let step = 0;
+    const timer = setInterval(() => {
+      step += 1;
+      const eased = 1 - (1 - step / steps) ** 2;
+      setProgress(eased);
+      if (step >= steps) {
+        clearInterval(timer);
+        setProgress(1);
+        setLanded(true);
+        onRevealComplete?.();
+      }
+    }, stepMs);
+
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skipAnimation, distance, rotation]);
+
+  const displayDistance = distance * progress;
+  const displayRotation = rotation * progress;
 
   return (
     <div className="flex h-full min-h-[380px] flex-col items-center justify-center gap-4" data-testid="darts-board">
@@ -56,22 +97,29 @@ export function DartsBoard({
         </div>
         <div
           data-testid="darts-marker"
-          className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]"
+          className={cn(
+            'absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.95)]',
+            landed && 'scale-110'
+          )}
           style={{
-            transform: `rotate(${angleDeg}deg) translate(${radiusPct}%) rotate(-${angleDeg}deg)`,
+            transform: dartTransform(displayDistance, displayRotation),
+            transition: landed ? 'transform 100ms ease-out' : undefined,
           }}
         />
       </div>
       <div className="text-sm text-muted-foreground">
-        Zone: <span className="font-semibold capitalize text-foreground">{zone}</span>
+        Zone:{' '}
+        <span className="font-semibold capitalize text-foreground">
+          {landed ? zone : '…'}
+        </span>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
         {ZONE_LEGEND.map((z) => (
           <MultiplierChip
             key={z.name}
             value={`${z.name} ${z.multiplier}x`}
-            tone={z.name === zone ? 'green' : 'neutral'}
-            active={z.name === zone}
+            tone={landed && z.name === zone ? 'green' : 'neutral'}
+            active={landed && z.name === zone}
           />
         ))}
       </div>

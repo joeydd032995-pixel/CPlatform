@@ -11,7 +11,11 @@ export default async function VerifyPage({
   const parsed = parseVerifySearchParams(resolved);
 
   return (
-    <Suspense fallback={<div className="p-6 text-slate-400">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-4xl px-4 py-8 text-muted-foreground sm:px-6">Loading...</div>
+      }
+    >
       <VerifyForm
         initialGame={parsed.game}
         initialServerSeed={parsed.serverSeed}

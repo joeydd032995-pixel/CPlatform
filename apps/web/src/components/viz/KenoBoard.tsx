@@ -1,20 +1,20 @@
 'use client';
 
-import { useEffect } from 'react';
 import type { KenoOutcome } from '@/lib/types';
 import type { KenoParams } from '@/lib/params';
 import { KENO_GAME_TILES_COUNT } from '@/lib/params';
+import { REVEAL_TIMING } from '@/lib/reveal-timing';
+import { useRevealSequence } from '@/hooks/use-reveal-sequence';
 import { cn } from '@/lib/utils';
 
 const COLS = 8;
 
-// Single-reveal (per the task's guidance -- Keno's zip counterpart doesn't
-// imply a step-by-step narrative the way Mines/Chicken/HiLo do). Still calls
-// onRevealComplete immediately on mount, since GamePage's phase machine
-// gates ResultPanel on it regardless of whether a Viz actually stages.
+// Staged reveal: the server already returned all drawn numbers in one response.
+// When `staged` is true, numbers are highlighted one at a time for draw drama.
 export function KenoBoard({
   outcome,
   params,
+  staged = false,
   onRevealComplete,
 }: {
   outcome: KenoOutcome;
@@ -22,13 +22,19 @@ export function KenoBoard({
   staged?: boolean;
   onRevealComplete?: () => void;
 }) {
-  useEffect(() => {
-    onRevealComplete?.();
-  }, [onRevealComplete]);
+  const revealedDrawCount = useRevealSequence({
+    total: outcome.drawn.length,
+    intervalMs: REVEAL_TIMING.keno,
+    staged,
+    onRevealComplete,
+    resetKey: outcome,
+  });
 
   const pickSet = new Set(params?.picks ?? []);
-  const drawnSet = new Set(outcome.drawn);
+  const visibleDrawn = outcome.drawn.slice(0, revealedDrawCount);
+  const drawnSet = new Set(visibleDrawn);
   const hitSet = new Set(outcome.hits);
+  const drawComplete = revealedDrawCount >= outcome.drawn.length;
 
   const tiles = Array.from({ length: KENO_GAME_TILES_COUNT }, (_, index) => index + 1);
 
@@ -41,7 +47,7 @@ export function KenoBoard({
         {tiles.map((tile) => {
           const isPick = pickSet.has(tile);
           const isDrawn = drawnSet.has(tile);
-          const isHit = hitSet.has(tile);
+          const isHit = drawComplete && hitSet.has(tile);
 
           return (
             <div
@@ -51,7 +57,7 @@ export function KenoBoard({
               data-drawn={isDrawn}
               data-hit={isHit}
               className={cn(
-                'flex aspect-square items-center justify-center rounded text-xs font-bold ring-1',
+                'flex aspect-square items-center justify-center rounded text-xs font-bold ring-1 transition-colors duration-200',
                 isHit
                   ? 'bg-emerald-600 text-white ring-emerald-400'
                   : isDrawn
@@ -68,8 +74,14 @@ export function KenoBoard({
       </div>
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>
-          Hits: {outcome.hitCount}
-          {params ? ` / ${params.picks.length}` : ''}
+          {drawComplete ? (
+            <>
+              Hits: {outcome.hitCount}
+              {params ? ` / ${params.picks.length}` : ''}
+            </>
+          ) : (
+            <>Drawing: {revealedDrawCount} / {outcome.drawn.length}</>
+          )}
         </span>
       </div>
     </div>

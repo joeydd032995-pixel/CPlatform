@@ -16,3 +16,21 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
+
+// jsdom doesn't implement matchMedia, but use-reduced-motion.ts calls it on
+// mount for every staged Viz -- stub it so components using that hook don't
+// throw in tests that never assert on reduced-motion behavior.
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'undefined') {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+    dispatchEvent() {
+      return false;
+    },
+  }) as unknown as MediaQueryList;
+}

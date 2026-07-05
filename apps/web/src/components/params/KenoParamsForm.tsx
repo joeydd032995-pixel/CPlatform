@@ -3,6 +3,14 @@
 import type { KenoParams } from '@/lib/params';
 import { KENO_GAME_TILES_COUNT, KENO_GAME_TILES_HIT_COUNT } from '@/lib/params';
 import { SecondaryButton } from '@/components/games/GameShell';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 
 const RISKS: KenoParams['risk'][] = ['classic', 'low', 'medium', 'high'];
@@ -36,20 +44,26 @@ export function KenoParamsForm({
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex flex-col gap-1 text-sm text-muted-foreground">
-        Risk
-        <select
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="keno-risk" className="text-sm text-muted-foreground">
+          Risk
+        </Label>
+        <Select
           value={value.risk}
-          onChange={(e) => onChange({ ...value, risk: e.target.value as KenoParams['risk'] })}
-          className="rounded-md border border-input bg-transparent p-2 text-foreground"
+          onValueChange={(risk) => onChange({ ...value, risk: risk as KenoParams['risk'] })}
         >
-          {RISKS.map((risk) => (
-            <option key={risk} value={risk}>
-              {risk}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger id="keno-risk" className="w-full" data-testid="keno-risk-select">
+            <SelectValue placeholder="Select risk" />
+          </SelectTrigger>
+          <SelectContent>
+            {RISKS.map((risk) => (
+              <SelectItem key={risk} value={risk}>
+                {risk}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="grid grid-cols-2 gap-2">
         <SecondaryButton onClick={autoPick}>AUTO PICK</SecondaryButton>

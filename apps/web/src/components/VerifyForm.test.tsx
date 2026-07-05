@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { VerifyForm } from './VerifyForm';
 
 describe('VerifyForm', () => {
@@ -18,6 +18,13 @@ describe('VerifyForm', () => {
     expect(screen.getByDisplayValue(serverSeed)).toBeInTheDocument();
     expect(screen.getByDisplayValue('my-client-seed')).toBeInTheDocument();
     expect(screen.getByDisplayValue('12')).toBeInTheDocument();
+
+    // Radix's TabsTrigger switches the active tab on mousedown, not click --
+    // fireEvent.click alone never dispatches the preceding mousedown, so the
+    // panel never actually switches. Fire mouseDown to match real click behavior.
+    const jsonTab = screen.getByRole('tab', { name: /advanced json/i });
+    fireEvent.mouseDown(jsonTab);
+    fireEvent.click(jsonTab);
     expect(screen.getByDisplayValue(/"target": 50/)).toBeInTheDocument();
 
     const submitButton = screen.getByRole('button', { name: /verify/i });

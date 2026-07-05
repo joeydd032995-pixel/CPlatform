@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { HiLoOutcome, Card } from '@/lib/types';
 import type { HiLoGuess, HiLoParams } from '@/lib/params';
+import { REVEAL_TIMING } from '@/lib/reveal-timing';
+import { useRevealSequence } from '@/hooks/use-reveal-sequence';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { cn } from '@/lib/utils';
 
 const RED_SUITS = new Set(['♦', '♥']);
-const STEP_INTERVAL_MS = 500;
 
 // `higher` = "higher or equal" (>= current rank); `lower` = "lower or equal"
 // (<= current rank). A tied redraw wins both directions -- there is no
@@ -24,7 +26,15 @@ function rankOf(card: Card): string {
   return card.slice(1);
 }
 
-function CardFace({ card, big = false }: { card: Card; big?: boolean }) {
+function CardFace({
+  card,
+  big = false,
+  flipIn = false,
+}: {
+  card: Card;
+  big?: boolean;
+  flipIn?: boolean;
+}) {
   const suit = suitOf(card);
   const isRed = RED_SUITS.has(suit);
 
@@ -34,7 +44,8 @@ function CardFace({ card, big = false }: { card: Card; big?: boolean }) {
       className={cn(
         'flex flex-col items-center justify-center rounded-md border bg-white font-bold shadow',
         big ? 'h-24 w-16 text-2xl' : 'h-16 w-12 text-lg',
-        isRed ? 'text-red-600' : 'text-slate-900'
+        isRed ? 'text-red-600' : 'text-slate-900',
+        flipIn && 'animate-card-flip-in'
       )}
     >
       <span>{rankOf(card)}</span>
@@ -57,30 +68,17 @@ export function HiLoCards({
   staged?: boolean;
   onRevealComplete?: () => void;
 }) {
-  const [revealedSteps, setRevealedSteps] = useState(staged ? 0 : outcome.steps.length);
+  const reducedMotion = useReducedMotion();
+  const [latestFlipKey, setLatestFlipKey] = useState(0);
 
-  useEffect(() => {
-    if (!staged) {
-      setRevealedSteps(outcome.steps.length);
-      return;
-    }
-    setRevealedSteps(0);
-    if (outcome.steps.length === 0) {
-      onRevealComplete?.();
-      return;
-    }
-    let i = 0;
-    const timer = setInterval(() => {
-      i += 1;
-      setRevealedSteps(i);
-      if (i >= outcome.steps.length) {
-        clearInterval(timer);
-        onRevealComplete?.();
-      }
-    }, STEP_INTERVAL_MS);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staged, outcome]);
+  const revealedSteps = useRevealSequence({
+    total: outcome.steps.length,
+    intervalMs: REVEAL_TIMING.hilo,
+    staged,
+    onRevealComplete,
+    resetKey: outcome,
+    onStep: () => setLatestFlipKey((key) => key + 1),
+  });
 
   const visibleCardCount = Math.min(revealedSteps + 1, outcome.cards.length);
   const visibleCards = outcome.cards.slice(0, visibleCardCount);
@@ -90,9 +88,15 @@ export function HiLoCards({
       <div className="flex flex-wrap items-end gap-3">
         {visibleCards.map((card, index) => {
           const step = outcome.steps[index - 1];
+          const isLatest = index === visibleCards.length - 1;
+          const shouldFlip = staged && !reducedMotion && isLatest && index > 0;
+
           return (
-            <div key={index} className="flex flex-col items-center gap-1">
-              <CardFace card={card} big={index === visibleCards.length - 1} />
+            <div
+              key={`${index}-${isLatest && shouldFlip ? latestFlipKey : 0}`}
+              className="flex flex-col items-center gap-1"
+            >
+              <CardFace card={card} big={isLatest} flipIn={shouldFlip} />
               {step && (
                 <span
                   data-testid={`hilo-step-${index - 1}`}

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { PlinkoOutcome } from '@/lib/types';
 import type { PlinkoParams } from '@/lib/params';
 import { MultiplierChip } from '@/components/games/GameShell';
-
-const STEP_INTERVAL_MS = 220;
+import { REVEAL_TIMING } from '@/lib/reveal-timing';
+import { formatPlinkoMultiplier, getPlinkoMultipliersTable } from '@/lib/plinko-multipliers';
+import { useRevealSequence } from '@/hooks/use-reveal-sequence';
 
 // NOTE: this deliberately switches Plinko's board rendering from the
 // previous Canvas-based implementation to plain DOM/CSS, matching the
@@ -24,29 +24,17 @@ export function PlinkoBoard({
   staged?: boolean;
   onRevealComplete?: () => void;
 }) {
-  const { rows } = params;
+  const { rows, risk } = params;
   const { path, multiplierIndex } = outcome;
+  const multipliers = getPlinkoMultipliersTable({ risk, rows });
 
-  const [step, setStep] = useState(staged ? 0 : path.length);
-
-  useEffect(() => {
-    if (!staged) {
-      setStep(path.length);
-      return;
-    }
-    setStep(0);
-    let i = 0;
-    const timer = setInterval(() => {
-      i += 1;
-      setStep(i);
-      if (i >= path.length) {
-        clearInterval(timer);
-        onRevealComplete?.();
-      }
-    }, STEP_INTERVAL_MS);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staged, path]);
+  const step = useRevealSequence({
+    total: path.length,
+    intervalMs: REVEAL_TIMING.plinko,
+    staged,
+    onRevealComplete,
+    resetKey: path,
+  });
 
   // Ball horizontal position (0-100%) after `step` moves, nudging by a
   // shrinking amount per row so it stays roughly centered over the peg
@@ -82,7 +70,7 @@ export function PlinkoBoard({
         {slots.map((i) => (
           <MultiplierChip
             key={i}
-            value={`slot ${i}`}
+            value={`x${formatPlinkoMultiplier(multipliers[i] ?? 0)}`}
             tone={landed && i === multiplierIndex ? 'pink' : 'neutral'}
             active={landed && i === multiplierIndex}
           />

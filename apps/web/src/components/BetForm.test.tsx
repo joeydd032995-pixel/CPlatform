@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { RouletteParamsSchema } from '@/lib/params';
 import { BetForm } from './BetForm';
+
+vi.mock('sonner', () => ({
+  toast: { error: vi.fn(), success: vi.fn() },
+}));
 
 vi.mock('@/lib/api-client', () => ({
   playGame: vi.fn(),
@@ -49,5 +54,21 @@ describe('BetForm', () => {
 
     const button = screen.getByRole('button', { name: /place bet/i });
     expect(button).not.toBeDisabled();
+  });
+
+  it('disables submit when params fail schema validation', () => {
+    render(
+      <BetForm
+        game="roulette"
+        userId="user-1"
+        params={{ bets: [] }}
+        paramsSchema={RouletteParamsSchema}
+        onResult={() => {}}
+        refreshBalance={async () => {}}
+      />
+    );
+
+    const button = screen.getByRole('button', { name: /place bet/i });
+    expect(button).toBeDisabled();
   });
 });
