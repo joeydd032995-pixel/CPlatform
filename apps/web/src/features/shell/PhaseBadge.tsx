@@ -6,6 +6,8 @@ const LABELS: Record<RevealPhase, string> = {
   dealing: 'Dealing…',
   revealing: 'Revealing…',
   done: 'Complete',
+  'awaiting-decision': 'Your move',
+  'action-pending': 'Working…',
 };
 
 const VARIANTS: Record<RevealPhase, 'secondary' | 'default' | 'outline'> = {
@@ -13,6 +15,8 @@ const VARIANTS: Record<RevealPhase, 'secondary' | 'default' | 'outline'> = {
   dealing: 'secondary',
   revealing: 'secondary',
   done: 'default',
+  'awaiting-decision': 'default',
+  'action-pending': 'secondary',
 };
 
 export function PhaseBadge({ phase }: { phase: RevealPhase }) {

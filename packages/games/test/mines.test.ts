@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { nCr } from '../src/combinatorics.js';
 import { expectedRTP } from '../src/house-edge.js';
-import { resolveMines, minesMultiplier } from '../src/mines.js';
+import {
+  resolveMines,
+  minesMultiplier,
+  deriveMinesRoundState,
+  evaluateMinesReveal,
+} from '../src/mines.js';
 
 const BASE = {
   serverSeed: 'a'.repeat(64),
@@ -57,6 +62,59 @@ describe('resolveMines', () => {
     const fair = nCr(25, 3) / nCr(22, 3);
     const withEdge = minesMultiplier(3, 3);
     expect(withEdge).toBeCloseTo(fair * 0.99, 6);
+  });
+});
+
+describe('Mines round-state primitives (cash-out)', () => {
+  it('deriveMinesRoundState reproduces the exact minePositions/revealOrder resolveMines uses internally', () => {
+    const mines = 5;
+    const state = deriveMinesRoundState(BASE, mines);
+
+    for (let picks = 0; picks <= 20; picks++) {
+      const { outcome } = resolveMines(BASE, { mines, picks }, 100);
+      expect(state.revealOrder.slice(0, picks)).toEqual(
+        (outcome as any).revealOrder
+      );
+      expect(state.minePositions).toEqual((outcome as any).minePositions);
+    }
+  });
+
+  it('evaluateMinesReveal called incrementally 1..picks matches resolveMines(picks) tile-for-tile and multiplier-for-multiplier', () => {
+    const mines = 4;
+    const picks = 6;
+    const state = deriveMinesRoundState(BASE, mines);
+    const { outcome, multiplier } = resolveMines(BASE, { mines, picks }, 100);
+    const revealOrder = (outcome as any).revealOrder as number[];
+    const minePositionSet = new Set((outcome as any).minePositions as number[]);
+
+    let hitMineSoFar = false;
+    for (let revealedCount = 1; revealedCount <= picks; revealedCount++) {
+      const result = evaluateMinesReveal(state, mines, revealedCount);
+      expect(result.tile).toBe(revealOrder[revealedCount - 1]);
+      expect(result.hitMine).toBe(minePositionSet.has(result.tile));
+      hitMineSoFar = hitMineSoFar || result.hitMine;
+    }
+    // The one-shot resolver's overall hitMine matches "did any incremental
+    // reveal up to `picks` hit a mine."
+    expect((outcome as any).hitMine).toBe(hitMineSoFar);
+    // The running multiplier after the full pick count matches the one-shot multiplier.
+    expect(evaluateMinesReveal(state, mines, picks).multiplier).toBeCloseTo(multiplier, 10);
+  });
+
+  it('running multiplier increases monotonically with each additional safe reveal', () => {
+    const mines = 3;
+    const state = deriveMinesRoundState(BASE, mines);
+    let prevMultiplier = 1;
+    for (let revealedCount = 1; revealedCount <= 10; revealedCount++) {
+      const { multiplier } = evaluateMinesReveal(state, mines, revealedCount);
+      expect(multiplier).toBeGreaterThan(prevMultiplier);
+      prevMultiplier = multiplier;
+    }
+  });
+
+  it('throws when revealedCount exceeds the 25-tile board', () => {
+    const state = deriveMinesRoundState(BASE, 5);
+    expect(() => evaluateMinesReveal(state, 5, 26)).toThrow();
   });
 });
 

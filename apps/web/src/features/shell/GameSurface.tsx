@@ -69,7 +69,7 @@ export function GameSurface({
   }
 
   return (
-    <div className="relative flex h-full min-h-[380px] w-full flex-col overflow-x-auto">
+    <div className="relative flex min-h-[380px] w-full flex-col overflow-x-auto overflow-y-visible">
       <Viz
         outcome={result.outcome as unknown as Record<string, unknown>}
         params={params}

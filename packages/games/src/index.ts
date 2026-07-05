@@ -7,10 +7,19 @@ export {
   calculateMinesPositions,
   deriveRevealOrder,
   MinesParamsSchema,
+  MinesRoundStartParamsSchema,
   minesMultiplier,
   resolveMines,
+  deriveMinesRoundState,
+  evaluateMinesReveal,
 } from './mines.js';
-export type { MinesRNGOptions, MinesParams, MinesOutcome } from './mines.js';
+export type {
+  MinesRNGOptions,
+  MinesParams,
+  MinesRoundStartParams,
+  MinesOutcome,
+  MinesRoundState,
+} from './mines.js';
 
 export {
   PlinkoBallMove,
@@ -132,6 +141,19 @@ export {
   shouldDealerHit,
   BlackjackParamsSchema,
   resolveBlackjack,
+  dealInitial,
+  playerHit,
+  playerStand,
+  playerDouble,
+  playerSplit,
+  playerInsurance,
+  advanceToNextHandOrDealer,
+  settleHands,
+  canHit,
+  canStand,
+  canDouble,
+  canSplit,
+  canTakeInsurance,
 } from './blackjack.js';
 export type {
   CalculateBlackjackResultsOptions,
@@ -139,6 +161,12 @@ export type {
   BlackjackParams,
   BlackjackResult,
   BlackjackOutcome,
+  BlackjackHandStatus,
+  BlackjackHandState,
+  BlackjackRoundPhase,
+  BlackjackRoundState,
+  BlackjackHandOutcome,
+  BlackjackRoundOutcome,
 } from './blackjack.js';
 
 export { GameDispatchTable } from './dispatch.js';

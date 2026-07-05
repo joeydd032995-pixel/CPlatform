@@ -6,9 +6,23 @@ import {
   shouldPlayerHit,
   shouldDealerHit,
   resolveBlackjack,
+  dealInitial,
+  playerHit,
+  playerStand,
+  playerDouble,
+  playerSplit,
+  playerInsurance,
+  settleHands,
+  canHit,
+  canStand,
+  canDouble,
+  canSplit,
+  canTakeInsurance,
+  type BlackjackRoundState,
 } from '../src/blackjack.js';
 import { applyHouseEdge } from '../src/house-edge.js';
-import type { Card } from '../src/deck.js';
+import { getCardRankValue, type Card } from '../src/deck.js';
+import type { GeneratorOptions } from '@cplatform/core-rng';
 
 const BASE = {
   serverSeed: '11'.repeat(32),
@@ -207,6 +221,266 @@ describe('scenario coverage (pinned nonces against BASE)', () => {
 // constant so a future change to the strategy table or payout rules that
 // silently shifts RTP gets caught.
 const PINNED_BLACKJACK_RTP = 0.9723;
+
+// --- Round-state primitives (hit/stand/double/split/insurance) ------------
+
+function findNonce(
+  predicate: (state: BlackjackRoundState, generatorOpts: GeneratorOptions) => boolean,
+  maxTries = 2000
+): { nonce: number; generatorOpts: GeneratorOptions; state: BlackjackRoundState } {
+  for (let nonce = 0; nonce < maxTries; nonce++) {
+    const generatorOpts = { ...BASE, nonce };
+    const state = dealInitial(generatorOpts, 100);
+    if (predicate(state, generatorOpts)) {
+      return { nonce, generatorOpts, state };
+    }
+  }
+  throw new Error('no matching nonce found within maxTries');
+}
+
+function driveWithFixedStrategy(
+  generatorOpts: GeneratorOptions,
+  betAmount: number
+): BlackjackRoundState {
+  let state = dealInitial(generatorOpts, betAmount);
+  while (state.phase !== 'settled') {
+    const hand = state.hands[state.activeHandIndex]!;
+    if (canHit(state) && shouldPlayerHit(hand.cards, state.dealerCards[0]!)) {
+      state = playerHit(generatorOpts, state);
+    } else if (canStand(state)) {
+      state = playerStand(generatorOpts, state);
+    } else {
+      throw new Error('stuck: neither hit nor stand legal but round not settled');
+    }
+  }
+  return state;
+}
+
+describe('Blackjack round-state primitives: equivalence with the one-shot resolver', () => {
+  it('driving the round primitives with the exact same fixed strategy (no split/double/insurance) reproduces resolveBlackjack outcome-for-outcome', () => {
+    for (let nonce = 0; nonce < 300; nonce++) {
+      const generatorOpts = { ...BASE, nonce };
+      const oneShot = resolveBlackjack(generatorOpts, {}, 100);
+      const roundState = driveWithFixedStrategy(generatorOpts, 100);
+      const { outcome: roundOutcome } = settleHands(roundState);
+
+      expect(roundOutcome.dealerCards).toEqual(oneShot.outcome.dealerCards);
+      expect(roundOutcome.dealerTotal).toBe(oneShot.outcome.dealerTotal);
+      expect(roundOutcome.hands).toHaveLength(1);
+      expect(roundOutcome.hands[0]!.cards).toEqual(oneShot.outcome.playerCards);
+      expect(roundOutcome.hands[0]!.total).toBe(oneShot.outcome.playerTotal);
+      expect(roundOutcome.hands[0]!.result).toBe(oneShot.outcome.result);
+      expect(roundOutcome.hands[0]!.payout).toBeCloseTo(oneShot.payout, 8);
+    }
+  });
+});
+
+describe('Blackjack round-state primitives: draw-stream accounting', () => {
+  it('dealInitial always consumes exactly draws 0-3, matching calculateBlackjackResults prefix', () => {
+    for (let nonce = 0; nonce < 25; nonce++) {
+      const generatorOpts = { ...BASE, nonce };
+      const state = dealInitial(generatorOpts, 100);
+      const reference = calculateBlackjackResults({ ...generatorOpts, limit: 4 });
+      expect(state.nextDrawIndex).toBe(4);
+      expect([state.hands[0]!.cards[0], state.dealerCards[0], state.hands[0]!.cards[1], state.dealerCards[1]]).toEqual(
+        reference
+      );
+    }
+  });
+
+  it('hitting until bust or 17+ consumes exactly one draw per hit, and nextDrawIndex matches total cards drawn', () => {
+    const { generatorOpts, state: initial } = findNonce((s) => canHit(s));
+    let state = initial;
+    let hits = 0;
+    while (canHit(state)) {
+      state = playerHit(generatorOpts, state);
+      hits++;
+      if (hits > 20) throw new Error('unexpectedly long hitting sequence');
+    }
+    // 4 initial draws + 1 per hit, plus however many the dealer drew.
+    const playerDrawsAfterInitial = state.hands[0]!.cards.length - 2;
+    expect(playerDrawsAfterInitial).toBe(hits);
+    expect(state.nextDrawIndex).toBeGreaterThanOrEqual(4 + hits);
+  });
+});
+
+describe('Blackjack round-state primitives: naturals skip all decisions', () => {
+  it('a natural (player or dealer) settles immediately with no legal actions', () => {
+    const { state } = findNonce((s) => s.phase === 'settled');
+    expect(canHit(state)).toBe(false);
+    expect(canStand(state)).toBe(false);
+    expect(canDouble(state)).toBe(false);
+    expect(canSplit(state)).toBe(false);
+    expect(canTakeInsurance(state)).toBe(false);
+
+    const { outcome } = settleHands(state);
+    expect(['blackjack', 'push', 'lose']).toContain(outcome.hands[0]!.result);
+  });
+});
+
+describe('Blackjack round-state primitives: split', () => {
+  it('splitting a pair debits exactly the original bet, produces two hands, and both settle correctly', () => {
+    const { generatorOpts, state: initial } = findNonce((s) => canSplit(s));
+    const originalBet = initial.hands[0]!.bet;
+
+    const { state: afterSplit, additionalDebit } = playerSplit(generatorOpts, initial);
+    expect(additionalDebit).toBe(originalBet);
+    expect(afterSplit.hands).toHaveLength(2);
+    expect(afterSplit.hands[0]!.bet).toBe(originalBet);
+    expect(afterSplit.hands[1]!.bet).toBe(originalBet);
+
+    // Only one split allowed per round.
+    expect(canSplit(afterSplit)).toBe(false);
+
+    // Play both hands out to settlement by standing immediately.
+    let state = afterSplit;
+    let guard = 0;
+    while (state.phase !== 'settled') {
+      if (canStand(state)) state = playerStand(generatorOpts, state);
+      else break;
+      if (++guard > 10) throw new Error('unexpectedly long settlement loop');
+    }
+    expect(state.phase).toBe('settled');
+
+    const { outcome, totalPayout } = settleHands(state);
+    expect(outcome.hands).toHaveLength(2);
+    // A split hand reaching 21 is never a bonus "blackjack" payout.
+    for (const hand of outcome.hands) {
+      expect(hand.result).not.toBe('blackjack');
+    }
+    expect(totalPayout).toBeCloseTo(
+      outcome.hands.reduce((sum, h) => sum + h.payout, 0) + outcome.insurancePayout,
+      8
+    );
+  });
+
+  it('splitting Aces deals exactly one further card per hand and forbids further hits', () => {
+    const { generatorOpts, state: initial } = findNonce(
+      (s) => canSplit(s) && getCardRankValue(s.hands[0]!.cards[0]!) === 1
+    );
+
+    const { state: afterSplit } = playerSplit(generatorOpts, initial);
+    expect(afterSplit.hands).toHaveLength(2);
+    for (const hand of afterSplit.hands) {
+      expect(hand.isSplitAce).toBe(true);
+      expect(hand.cards).toHaveLength(2);
+      expect(hand.status).toBe('stood');
+    }
+    // Split-ace hands can't hit or double.
+    expect(canHit(afterSplit)).toBe(false);
+    expect(canDouble(afterSplit)).toBe(false);
+  });
+
+  it('rejects splitting a non-pair', () => {
+    const { generatorOpts, state } = findNonce((s) => !canSplit(s) && s.phase === 'player-acting');
+    expect(() => playerSplit(generatorOpts, state)).toThrow();
+  });
+});
+
+describe('Blackjack round-state primitives: double', () => {
+  it('doubling debits exactly the original bet, draws exactly one card, and forces a stand', () => {
+    const { generatorOpts, state: initial } = findNonce((s) => canDouble(s));
+    const originalBet = initial.hands[0]!.bet;
+    const cardsBefore = initial.hands[0]!.cards.length;
+
+    const { state: afterDouble, additionalDebit } = playerDouble(generatorOpts, initial);
+    expect(additionalDebit).toBe(originalBet);
+
+    // The doubled hand is no longer active (forced stand/bust); if it was
+    // the only hand, the round has already moved to dealer play/settlement.
+    const doubledHandIndex = 0;
+    const doubledHand =
+      afterDouble.hands[doubledHandIndex]!.bet === originalBet * 2
+        ? afterDouble.hands[doubledHandIndex]!
+        : afterDouble.hands.find((h) => h.bet === originalBet * 2)!;
+    expect(doubledHand.cards.length).toBe(cardsBefore + 1);
+    expect(doubledHand.bet).toBe(originalBet * 2);
+    expect(['doubled', 'busted']).toContain(doubledHand.status);
+  });
+
+  it('rejects doubling a hand that already has more than 2 cards', () => {
+    const { generatorOpts, state: initial } = findNonce((s) => canHit(s));
+    const hit = playerHit(generatorOpts, initial);
+    expect(() => playerDouble(generatorOpts, hit)).toThrow();
+  });
+});
+
+describe('Blackjack round-state primitives: insurance', () => {
+  it('is only legal immediately after dealing, with a dealer Ace upcard, and debits half the bet', () => {
+    const { generatorOpts, state: initial } = findNonce(
+      (s) => s.phase === 'player-acting' && getCardRankValue(s.dealerCards[0]!) === 1
+    );
+    expect(canTakeInsurance(initial)).toBe(true);
+
+    const { state: afterInsurance, additionalDebit } = playerInsurance(initial);
+    expect(additionalDebit).toBe(initial.hands[0]!.bet / 2);
+    expect(afterInsurance.insuranceTaken).toBe(true);
+    // Can't take insurance twice.
+    expect(canTakeInsurance(afterInsurance)).toBe(false);
+    expect(() => playerInsurance(afterInsurance)).toThrow();
+  });
+
+  it('pays 3x the insurance bet when the dealer has a natural, 0 otherwise', () => {
+    const { generatorOpts, state: initial } = findNonce(
+      (s) => s.phase === 'player-acting' && getCardRankValue(s.dealerCards[0]!) === 1
+    );
+    const { state: afterInsurance } = playerInsurance(initial);
+    const finalState = driveWithFixedStrategy(generatorOpts, 100);
+    // Re-derive with insurance applied on top of the same seed's deal.
+    let state = afterInsurance;
+    while (state.phase !== 'settled') {
+      const hand = state.hands[state.activeHandIndex]!;
+      if (canHit(state) && shouldPlayerHit(hand.cards, state.dealerCards[0]!)) {
+        state = playerHit(generatorOpts, state);
+      } else if (canStand(state)) {
+        state = playerStand(generatorOpts, state);
+      } else break;
+    }
+    const { outcome } = settleHands(state);
+    const dealerHadNatural = isNatural(outcome.dealerCards);
+    if (dealerHadNatural) {
+      expect(outcome.insurancePayout).toBeCloseTo(afterInsurance.insuranceBet * 3, 8);
+    } else {
+      expect(outcome.insurancePayout).toBe(0);
+    }
+    // Sanity: the underlying hand-play matches the no-insurance driven
+    // version (insurance doesn't consume draws or otherwise perturb play).
+    expect(outcome.dealerCards).toEqual(settleHands(finalState).outcome.dealerCards);
+  });
+
+  it('rejects insurance when the dealer upcard is not an Ace', () => {
+    const { state } = findNonce(
+      (s) => s.phase === 'player-acting' && getCardRankValue(s.dealerCards[0]!) !== 1
+    );
+    expect(canTakeInsurance(state)).toBe(false);
+    expect(() => playerInsurance(state)).toThrow();
+  });
+
+  it('rejects insurance once another decision has been made', () => {
+    const { generatorOpts, state: initial } = findNonce(
+      (s) => s.phase === 'player-acting' && canHit(s) && getCardRankValue(s.dealerCards[0]!) === 1
+    );
+    const afterHit = playerHit(generatorOpts, initial);
+    expect(canTakeInsurance(afterHit)).toBe(false);
+    expect(() => playerInsurance(afterHit)).toThrow();
+  });
+});
+
+describe('Blackjack round-state primitives: illegal-action guards', () => {
+  it('rejects any action once the round is settled', () => {
+    const { generatorOpts, state } = findNonce((s) => s.phase === 'settled');
+    expect(() => playerHit(generatorOpts, state)).toThrow();
+    expect(() => playerStand(generatorOpts, state)).toThrow();
+    expect(() => playerDouble(generatorOpts, state)).toThrow();
+    expect(() => playerSplit(generatorOpts, state)).toThrow();
+  });
+
+  it('rejects a second split in the same round', () => {
+    const { generatorOpts, state: initial } = findNonce((s) => canSplit(s));
+    const { state: afterSplit } = playerSplit(generatorOpts, initial);
+    expect(() => playerSplit(generatorOpts, afterSplit)).toThrow();
+  });
+});
 
 describe('blackjack RTP (rule-determined, not 0.99)', () => {
   it('converges within +/-0.02 of the pinned regression constant over 40k rounds', () => {

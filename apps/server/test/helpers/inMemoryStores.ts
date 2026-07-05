@@ -1,6 +1,7 @@
 import type { SeedFields, SeedStore, SeedTuple } from '../../src/seedStore.js';
 import type { IdempotencyStore, BeginResult } from '../../src/idempotency.js';
 import type { GameDb, GameTx, BetRecord } from '../../src/gameService.js';
+import type { RoundDb, RoundTx, RoundRecord } from '../../src/roundService.js';
 import type { EnsureUser } from '../../src/middleware/auth.js';
 import type { UserDb } from '../../src/routes/me.js';
 
@@ -206,6 +207,132 @@ export function createFakeDb(): GameDb & { users: Map<string, FakeUser>; bets: B
   };
 
   return db;
+}
+
+// Shares the same `users`/`bets` state as an existing createFakeDb() fake
+// (so gameService and roundService tests can observe each other's balance
+// mutations if ever combined) and adds its own `rounds` Map with the same
+// version-based compare-and-swap semantics roundService.ts relies on in
+// production against a real `updateMany({ where: { version } })` call.
+export function createFakeRoundDb(
+  db: { users: Map<string, FakeUser>; bets: BetRecord[] }
+): RoundDb & { rounds: Map<string, RoundRecord> } {
+  const { users, bets } = db;
+  const rounds = new Map<string, RoundRecord>();
+
+  // Same "serialize behind a tail promise" rationale as createFakeDb's own
+  // transaction queue above -- a real DB transaction can't interleave with
+  // another either.
+  let tail: Promise<unknown> = Promise.resolve();
+
+  async function runTransaction<T>(fn: (tx: RoundTx) => Promise<T>): Promise<T> {
+    const stagedUsers = new Map(users);
+    const stagedBets = [...bets];
+    const stagedRounds = new Map(rounds);
+
+    const tx: RoundTx = {
+      user: {
+        async updateMany({ where, data }) {
+          const u = stagedUsers.get(where.id);
+          if (!u || u.balance < where.balance.gte) {
+            return { count: 0 };
+          }
+          stagedUsers.set(where.id, { ...u, balance: u.balance - data.balance.decrement });
+          return { count: 1 };
+        },
+        async update({ where, data }) {
+          const u = stagedUsers.get(where.id);
+          if (!u) throw new Error(`user ${where.id} not found`);
+          stagedUsers.set(where.id, { ...u, balance: u.balance + data.balance.increment });
+          return u;
+        },
+      },
+      round: {
+        async create({ data }) {
+          if (data.idempotencyKey) {
+            for (const r of stagedRounds.values()) {
+              if (r.idempotencyKey === data.idempotencyKey) {
+                const err = new Error('Unique constraint failed on idempotencyKey') as Error & {
+                  code: string;
+                };
+                err.code = 'P2002';
+                throw err;
+              }
+            }
+          }
+          const round: RoundRecord = { id: nextId('round'), version: 0, ...data };
+          stagedRounds.set(round.id, round);
+          return round;
+        },
+        async findFirst({ where }) {
+          const r = stagedRounds.get(where.id);
+          if (!r || r.userId !== where.userId) return null;
+          return r;
+        },
+        async updateMany({ where, data }) {
+          const r = stagedRounds.get(where.id);
+          if (!r || r.userId !== where.userId || r.version !== where.version) {
+            return { count: 0 };
+          }
+          const { version, ...rest } = data;
+          stagedRounds.set(where.id, { ...r, ...rest, version: r.version + version.increment });
+          return { count: 1 };
+        },
+      },
+      bet: {
+        async create({ data }) {
+          if (data.idempotencyKey) {
+            const dup = stagedBets.find((b) => b.idempotencyKey === data.idempotencyKey);
+            if (dup) {
+              const err = new Error('Unique constraint failed on idempotencyKey') as Error & {
+                code: string;
+              };
+              err.code = 'P2002';
+              throw err;
+            }
+          }
+          const bet: BetRecord = { id: nextId('bet'), ...data };
+          stagedBets.push(bet);
+          return bet;
+        },
+      },
+    };
+
+    const result = await fn(tx);
+
+    users.clear();
+    for (const [k, v] of stagedUsers) users.set(k, v);
+    bets.length = 0;
+    bets.push(...stagedBets);
+    rounds.clear();
+    for (const [k, v] of stagedRounds) rounds.set(k, v);
+
+    return result;
+  }
+
+  const roundDb: RoundDb & { rounds: Map<string, RoundRecord> } = {
+    rounds,
+    round: {
+      async findFirst({ where }) {
+        const r = rounds.get(where.id);
+        if (!r || r.userId !== where.userId) return null;
+        return r;
+      },
+      async findUnique({ where }) {
+        for (const r of rounds.values()) {
+          if (r.idempotencyKey === where.idempotencyKey) return r;
+        }
+        return null;
+      },
+    },
+    $transaction<T>(fn: (tx: RoundTx) => Promise<T>): Promise<T> {
+      const result = tail.then(() => runTransaction(fn));
+      tail = result.catch(() => undefined);
+      return result;
+    },
+  };
+
+  return roundDb;
 }
 
 // Backs GET /api/me with the same `users` map createFakeDb already

@@ -11,8 +11,9 @@ model User {
   id      String @id @default(cuid())
   balance Decimal @default(0) @db.Decimal(18, 8)
 
-  bets  Bet[]
-  seeds RevealedSeed[]
+  bets   Bet[]
+  seeds  RevealedSeed[]
+  rounds Round[]
 }
 
 model Bet {
@@ -52,4 +53,62 @@ model RevealedSeed {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, rotatedAt])
+}
+
+enum RoundStatus {
+  OPEN
+  CASHED_OUT
+  BUSTED
+  SETTLED
+}
+
+// A multi-request, in-progress bet (Mines cash-out, Blackjack real-time
+// decisions). Every other game stays on the one-shot Bet model above --
+// this is purely additive, existing behavior/tables are unaffected.
+// On final settlement (cash-out, bust, or hand resolution), a Bet row is
+// also written so balance-history/reporting never needs to learn about
+// Round at all.
+model Round {
+  id             String      @id @default(cuid())
+  userId         String
+  game           String
+  status         RoundStatus @default(OPEN)
+  betAmount      Decimal     @db.Decimal(18, 8)
+  payout         Decimal?    @db.Decimal(18, 8)
+  multiplier     Decimal?    @db.Decimal(18, 8)
+  serverSeedHash String
+  clientSeed     String
+  nonce          Int
+
+  // Bet-time params, e.g. { mines: 5 } for Mines, {} for Blackjack.
+  startParams Json
+
+  // Server-side-only precomputed/derived state (e.g. Mines' mine
+  // positions + reveal order; Blackjack's hands/dealer cards/draw cursor).
+  // Never sent to the client wholesale -- only the redacted public
+  // projection each action response returns.
+  serverState Json
+
+  // Ordered, append-only action history, needed to replay/verify the
+  // round later and to reconstruct an audit trail.
+  actionLog Json @default("[]")
+
+  // Durable idempotency backstop for round-start, same rationale as
+  // Bet.idempotencyKey above.
+  idempotencyKey String? @unique
+
+  // Optimistic-concurrency guard for actions: every mutation increments
+  // this, and every action request must supply the version it last read
+  // (compare-and-swap via updateMany, same pattern already used for the
+  // User.balance insufficient-funds check) so a stale/racing request is
+  // rejected instead of silently clobbering another in-flight action.
+  version Int @default(0)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  settledAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
 }
