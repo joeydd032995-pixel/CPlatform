@@ -51,8 +51,18 @@ export function PlinkoBoard({
   const slots = Array.from({ length: slotCount }, (_, i) => i);
   const landed = step >= path.length;
 
+  // Each row adds ~20px of paddingTop (12px for row 0) plus a 6px peg, so the
+  // pyramid's natural height grows with `rows` (schema allows 8-16) -- a
+  // fixed min-height sized for the old lower row-count max silently clipped
+  // higher row counts. Compute the floor from `rows` instead.
+  const boardMinHeight = Math.max(380, 40 + rows * 26);
+
   return (
-    <div className="flex h-full min-h-[380px] flex-col" data-testid="plinko-board">
+    <div
+      className="flex flex-col"
+      style={{ minHeight: boardMinHeight }}
+      data-testid="plinko-board"
+    >
       <div className="relative flex-1">
         {Array.from({ length: rows }).map((_, r) => (
           <div key={r} className="flex justify-center gap-6" style={{ paddingTop: r === 0 ? 12 : 20 }}>

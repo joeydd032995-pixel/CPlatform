@@ -128,6 +128,46 @@ export function resolveMines(
   };
 }
 
+// --- Round-state primitives (Mines cash-out) -------------------------------
+//
+// `resolveMines(picks=k)` above already derives the *entire* 25-tile mine
+// layout and reveal order from one deterministic nonce draw, and checking
+// the first k reveal-order tiles against the mine positions is already
+// exactly "what happens if the player reveals k tiles and stops." These two
+// functions just decompose that existing logic into a "derive once at
+// round-start" step and a "re-evaluate incrementally per action" step, so a
+// round-based flow can reveal one tile at a time without any new RNG design
+// or new float draws per action -- reused as-is by roundService.
+
+export type MinesRoundState = {
+  minePositions: number[];
+  revealOrder: number[];
+};
+
+export function deriveMinesRoundState(
+  generatorOpts: GeneratorOptions,
+  mines: number
+): MinesRoundState {
+  return {
+    minePositions: calculateMinesPositions({ ...generatorOpts, mines }),
+    revealOrder: deriveRevealOrder(generatorOpts),
+  };
+}
+
+export function evaluateMinesReveal(
+  state: MinesRoundState,
+  mines: number,
+  revealedCount: number
+): { tile: number; hitMine: boolean; multiplier: number } {
+  const tile = state.revealOrder[revealedCount - 1];
+  if (tile === undefined) {
+    throw new InvalidBetParamsError('mines', 'revealedCount exceeds board size');
+  }
+  const hitMine = new Set(state.minePositions).has(tile);
+  const multiplier = minesMultiplier(mines, revealedCount);
+  return { tile, hitMine, multiplier };
+}
+
 function validateMinesParams(params: unknown): MinesParams {
   const result = MinesParamsSchema.safeParse(params);
   if (!result.success) {
