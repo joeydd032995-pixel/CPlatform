@@ -104,6 +104,55 @@ export type MeResponse = {
   balance: number;
 };
 
+// Mirrors apps/server/src/roundService.ts's RoundStatus + public
+// projections exactly. These are the redacted views a Mines/Blackjack round
+// endpoint returns -- never the hidden server-side state (mine positions,
+// dealer hole card before it's legitimately revealed).
+export type RoundStatus = 'OPEN' | 'CASHED_OUT' | 'BUSTED' | 'SETTLED';
+
+export type MinesRoundView = {
+  id: string;
+  game: 'mines';
+  status: RoundStatus;
+  betAmount: number;
+  mines: number;
+  revealedTiles: number[];
+  minePositions: number[] | null;
+  currentMultiplier: number;
+  payout: number | null;
+  version: number;
+};
+
+export type BlackjackHandView = {
+  cards: Card[];
+  bet: number;
+  status: string;
+  isSplitAce?: boolean;
+  result?: 'blackjack' | 'win' | 'push' | 'lose';
+  payout?: number;
+};
+
+export type BlackjackRoundView = {
+  id: string;
+  game: 'blackjack';
+  status: RoundStatus;
+  betAmount: number;
+  hands: BlackjackHandView[];
+  activeHandIndex: number;
+  dealerCards: Card[];
+  insuranceTaken: boolean;
+  insuranceBet: number;
+  canHit: boolean;
+  canStand: boolean;
+  canDouble: boolean;
+  canSplit: boolean;
+  canTakeInsurance: boolean;
+  payout: number | null;
+  version: number;
+};
+
+export type BlackjackAction = 'hit' | 'stand' | 'double' | 'split' | 'insurance';
+
 // Mirrors apps/server/src/middleware/errorHandler.ts's error JSON shape
 // (AppError branch + ZodError branch both include `code`/`error`; the
 // validation branch additionally includes `issues`).

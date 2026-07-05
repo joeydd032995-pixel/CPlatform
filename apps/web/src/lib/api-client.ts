@@ -10,6 +10,9 @@ import type {
   RevealedSeedRecord,
   VerifyResponse,
   ApiErrorBody,
+  MinesRoundView,
+  BlackjackRoundView,
+  BlackjackAction,
 } from './types';
 
 export class ApiError extends Error {
@@ -115,6 +118,81 @@ export function verifyBet(body: VerifyBetBody): Promise<VerifyResponse> {
 
 export function getMe(userId: string): Promise<MeResponse> {
   return request<MeResponse>('/api/me', {
+    method: 'GET',
+    userId,
+  });
+}
+
+// --- Round-state endpoints (Mines cash-out, Blackjack real-time decisions) -
+
+export function startMinesRound(
+  userId: string,
+  body: { betAmount: number; mines: number },
+  idempotencyKey?: string
+): Promise<MinesRoundView> {
+  return request<MinesRoundView>('/api/rounds/mines/start', {
+    method: 'POST',
+    userId,
+    idempotencyKey,
+    body: JSON.stringify(body),
+  });
+}
+
+export function minesReveal(
+  userId: string,
+  roundId: string,
+  version: number
+): Promise<MinesRoundView> {
+  return request<MinesRoundView>(`/api/rounds/mines/${roundId}/reveal`, {
+    method: 'POST',
+    userId,
+    body: JSON.stringify({ version }),
+  });
+}
+
+export function minesCashOut(
+  userId: string,
+  roundId: string,
+  version: number
+): Promise<MinesRoundView> {
+  return request<MinesRoundView>(`/api/rounds/mines/${roundId}/cash-out`, {
+    method: 'POST',
+    userId,
+    body: JSON.stringify({ version }),
+  });
+}
+
+export function startBlackjackRound(
+  userId: string,
+  body: { betAmount: number },
+  idempotencyKey?: string
+): Promise<BlackjackRoundView> {
+  return request<BlackjackRoundView>('/api/rounds/blackjack/start', {
+    method: 'POST',
+    userId,
+    idempotencyKey,
+    body: JSON.stringify(body),
+  });
+}
+
+export function blackjackAction(
+  userId: string,
+  roundId: string,
+  version: number,
+  action: BlackjackAction
+): Promise<BlackjackRoundView> {
+  return request<BlackjackRoundView>(`/api/rounds/blackjack/${roundId}/action`, {
+    method: 'POST',
+    userId,
+    body: JSON.stringify({ version, action }),
+  });
+}
+
+export function getRound(
+  userId: string,
+  roundId: string
+): Promise<MinesRoundView | BlackjackRoundView> {
+  return request<MinesRoundView | BlackjackRoundView>(`/api/rounds/${roundId}`, {
     method: 'GET',
     userId,
   });

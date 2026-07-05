@@ -164,6 +164,10 @@ export type PublicMinesRoundView = {
   betAmount: number;
   mines: number;
   revealedTiles: number[];
+  // Only populated once the round is no longer OPEN -- matches the one-shot
+  // Mines resolver, which likewise always reveals the full mine layout once
+  // a bet is settled. Never sent while a round is still in progress.
+  minePositions: number[] | null;
   currentMultiplier: number;
   payout: number | null;
   version: number;
@@ -174,6 +178,11 @@ export type PublicBlackjackHandView = {
   bet: number;
   status: string;
   isSplitAce?: boolean;
+  // Only populated once the round is settled -- mirrors the one-shot
+  // Blackjack resolver, which likewise only ever reveals a hand's
+  // win/lose/push/blackjack result and payout once it's fully decided.
+  result?: 'blackjack' | 'win' | 'push' | 'lose';
+  payout?: number;
 };
 
 export type PublicBlackjackRoundView = {
@@ -212,6 +221,7 @@ function toPublicMinesView(record: RoundRecord): PublicMinesRoundView {
     betAmount: Number(record.betAmount),
     mines: state.mines,
     revealedTiles: state.round.revealOrder.slice(0, state.revealedCount),
+    minePositions: record.status === 'OPEN' ? null : state.round.minePositions,
     currentMultiplier:
       state.revealedCount > 0 ? minesMultiplier(state.mines, state.revealedCount) : 1,
     payout: record.payout == null ? null : Number(record.payout),
@@ -222,16 +232,19 @@ function toPublicMinesView(record: RoundRecord): PublicMinesRoundView {
 function toPublicBlackjackView(record: RoundRecord): PublicBlackjackRoundView {
   const state = record.serverState as BlackjackRoundState;
   const dealerRevealCount = state.phase === 'settled' ? state.dealerCards.length : 1;
+  const settledOutcome = state.phase === 'settled' ? settleHands(state).outcome : null;
   return {
     id: record.id,
     game: 'blackjack',
     status: record.status,
     betAmount: Number(record.betAmount),
-    hands: state.hands.map((h) => ({
+    hands: state.hands.map((h, i) => ({
       cards: h.cards,
       bet: h.bet,
       status: h.status,
       isSplitAce: h.isSplitAce,
+      result: settledOutcome?.hands[i]?.result,
+      payout: settledOutcome?.hands[i]?.payout,
     })),
     activeHandIndex: state.activeHandIndex,
     dealerCards: state.dealerCards.slice(0, dealerRevealCount),
