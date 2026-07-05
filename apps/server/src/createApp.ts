@@ -86,7 +86,7 @@ export async function createApp(): Promise<Express> {
       await userDb.user.upsert({
         where: { id: userId },
         update: {},
-        create: { id: userId, balance: 1000 },
+        create: { id: userId, balance: 11000 },
       });
     },
   };
