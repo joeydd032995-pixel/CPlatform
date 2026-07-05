@@ -39,7 +39,7 @@ export function RouletteResult({
   const totalPayout = betResults.reduce((sum, b) => sum + b.payout, 0);
 
   return (
-    <div className="flex flex-col items-center gap-4" data-testid="roulette-result">
+    <div className="flex w-full flex-col items-center gap-4 px-1" data-testid="roulette-result">
       <RouletteWheel result={result} staged={staged} onRevealComplete={onRevealComplete} />
 
       <div className="flex items-center gap-4">

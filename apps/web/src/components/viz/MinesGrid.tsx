@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { MinesOutcome } from '@/lib/types';
 import type { MinesParams } from '@/lib/params';
-import { MultiplierChip } from '@/components/games/GameShell';
+import { REVEAL_TIMING } from '@/lib/reveal-timing';
+import { useRevealSequence } from '@/hooks/use-reveal-sequence';
 
 const TILES = 25;
 const COLS = 5;
-const REVEAL_INTERVAL_MS = 300;
 
 // Staged reveal: the server already returned the FULL outcome (every mine
 // position and the entire revealOrder) in one response -- nothing here is
@@ -24,30 +23,13 @@ export function MinesGrid({
   staged?: boolean;
   onRevealComplete?: () => void;
 }) {
-  const [revealedCount, setRevealedCount] = useState(staged ? 0 : outcome.revealOrder.length);
-
-  useEffect(() => {
-    if (!staged) {
-      setRevealedCount(outcome.revealOrder.length);
-      return;
-    }
-    setRevealedCount(0);
-    if (outcome.revealOrder.length === 0) {
-      onRevealComplete?.();
-      return;
-    }
-    let index = 0;
-    const timer = setInterval(() => {
-      index += 1;
-      setRevealedCount(index);
-      if (index >= outcome.revealOrder.length) {
-        clearInterval(timer);
-        onRevealComplete?.();
-      }
-    }, REVEAL_INTERVAL_MS);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staged, outcome]);
+  const revealedCount = useRevealSequence({
+    total: outcome.revealOrder.length,
+    intervalMs: REVEAL_TIMING.mines,
+    staged,
+    onRevealComplete,
+    resetKey: outcome,
+  });
 
   const mineSet = new Set(outcome.minePositions);
   const revealedTiles = outcome.revealOrder.slice(0, revealedCount);
@@ -55,13 +37,14 @@ export function MinesGrid({
   const hitTile = outcome.hitMine ? revealedTiles.find((tile) => mineSet.has(tile)) : undefined;
 
   const tiles = Array.from({ length: TILES }, (_, index) => index);
-  const gemsRevealed = revealedTiles.filter((tile) => !mineSet.has(tile)).length;
-  const runningMultiplier = (1 + gemsRevealed * 0.3).toFixed(2);
+  const totalPicks = params?.picks ?? outcome.revealOrder.length;
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <MultiplierChip value={`x${runningMultiplier}`} tone="neutral" />
+        <span className="text-sm font-semibold tabular-nums text-foreground">
+          {revealedTiles.length} / {totalPicks} picks
+        </span>
         {params && (
           <span className="text-[11px] text-muted-foreground">
             {params.mines} mines &middot; {params.picks} picks

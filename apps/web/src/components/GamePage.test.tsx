@@ -3,12 +3,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { GamePage } from './GamePage';
 
 // Regression test for a CodeRabbit-caught bug: GamePage's reveal-phase state
-// machine only reaches 'done' (which gates ResultPanel) via each Viz calling
-// onRevealComplete. Keno/Darts/Dice/Roulette/Blackjack are single-reveal
-// Vizzes that initially didn't call it at all, so phase got stuck at
-// 'revealing' forever and ResultPanel never appeared for a real bet on any
-// of those five games. This drives an actual bet through GamePage (mocking
-// only the network boundary) for each of them and asserts ResultPanel shows.
+// machine only reaches 'done' (which gates ResultOverlay) via each Viz calling
+// onRevealComplete. Keno/Darts/Dice/Roulette/Blackjack initially didn't call
+// it at all, so phase got stuck at 'revealing' forever. Dice and Keno now
+// run short staged reveals; Roulette's wheel spin is the longest animation.
 
 vi.mock('@/lib/user-context', () => ({
   useUser: () => ({
@@ -83,7 +81,7 @@ vi.mock('@/lib/api-client', () => ({
 
 describe('GamePage reveal flow (previously-broken single-reveal games)', () => {
   it.each(['keno', 'darts', 'dice', 'roulette', 'blackjack'] as const)(
-    'reaches phase=done and renders ResultPanel after a %s bet',
+    'reaches phase=done and renders ResultOverlay after a %s bet',
     async (game) => {
       render(<GamePage game={game} />);
 
@@ -96,14 +94,15 @@ describe('GamePage reveal flow (previously-broken single-reveal games)', () => {
         fireEvent.click(redBox);
       }
 
-      const button = await screen.findByRole('button', { name: /place bet/i });
+      const button = await screen.findByRole('button', { name: /^(bet|spin|deal)$/i });
       fireEvent.click(button);
 
-      // Roulette's RouletteWheel runs a genuine ~3.5s staged spin animation
-      // (see RouletteWheel.tsx) before calling onRevealComplete -- unlike
-      // every other single-reveal Viz here, which resolve synchronously.
-      // Give it a longer waitFor budget to avoid a false-negative timeout.
-      const timeout = game === 'roulette' ? 4500 : 2000;
+      const timeout =
+        game === 'roulette'
+          ? 4500
+          : game === 'keno' || game === 'dice' || game === 'blackjack' || game === 'darts'
+            ? 3000
+            : 2000;
 
       await waitFor(() => expect(screen.getByText('Result')).toBeInTheDocument(), {
         timeout,

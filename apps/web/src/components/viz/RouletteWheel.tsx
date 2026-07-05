@@ -135,8 +135,10 @@ export function RouletteWheel({
     <div className="relative flex flex-col items-center gap-2" data-testid="roulette-wheel">
       <div className="absolute -top-1 left-1/2 z-10 h-3 w-3 -translate-x-1/2 rotate-45 bg-yellow-400 shadow" />
       <div
+        className="rounded-full"
         style={{
           transform: `rotate(${rotation}deg)`,
+          willChange: animate ? 'transform' : 'auto',
           transition: animate
             ? `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.15, 0.65, 0.2, 1)`
             : 'none',

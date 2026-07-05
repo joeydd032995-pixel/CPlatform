@@ -55,6 +55,17 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-muted: var(--brand-muted);
+  --color-win: var(--win);
+  --color-win-muted: var(--win-muted);
+  --color-lose: var(--lose);
+  --color-lose-muted: var(--lose-muted);
+  --color-surface-game: var(--surface-game);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --shadow-play: var(--shadow-play);
 }
 
 :root {
@@ -108,8 +119,6 @@
   --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.14 0 0);
   --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.9 0 0);
-  --primary-foreground: oklch(0.15 0 0);
   --secondary: oklch(0.2 0 0);
   --secondary-foreground: oklch(0.96 0 0);
   --muted: oklch(0.2 0 0);
@@ -134,6 +143,24 @@
   --sidebar-accent-foreground: oklch(0.96 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.5 0 0);
+
+  /* Brand + semantic game tokens (PR1 design system) */
+  --brand: oklch(0.62 0.24 300);
+  --brand-foreground: oklch(0.98 0 0);
+  --brand-muted: oklch(0.62 0.24 300 / 15%);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
+  --win: oklch(0.72 0.19 155);
+  --win-muted: oklch(0.72 0.19 155 / 20%);
+  --lose: oklch(0.63 0.24 25);
+  --lose-muted: oklch(0.63 0.24 25 / 20%);
+  --surface-game: oklch(0.12 0 0);
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-reveal: 300ms;
+  --duration-deal: 450ms;
+  --shadow-play: 0 8px 30px -10px oklch(0.62 0.24 300 / 60%);
 }
 
 @layer base {
@@ -144,7 +171,55 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* Subtle brand atmosphere on the app canvas */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(
+    ellipse 80% 50% at 50% -10%,
+    oklch(0.62 0.24 300 / 12%),
+    transparent 70%
+  );
+}
+
+@keyframes card-flip-in {
+  from {
+    transform: perspective(600px) rotateY(-90deg);
+    opacity: 0.4;
+  }
+  to {
+    transform: perspective(600px) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+.animate-card-flip-in {
+  animation: card-flip-in var(--duration-reveal) ease-out both;
+}
+
+@keyframes death-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.63 0.24 25 / 0.7);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px oklch(0.63 0.24 25 / 0);
+    transform: scale(1.08);
+  }
+}
+
+.animate-death-pulse {
+  animation: death-pulse 600ms ease-in-out 2;
 }
 
 ::selection {

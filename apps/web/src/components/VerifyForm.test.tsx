@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { VerifyForm } from './VerifyForm';
 
 describe('VerifyForm', () => {
@@ -18,6 +18,8 @@ describe('VerifyForm', () => {
     expect(screen.getByDisplayValue(serverSeed)).toBeInTheDocument();
     expect(screen.getByDisplayValue('my-client-seed')).toBeInTheDocument();
     expect(screen.getByDisplayValue('12')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /advanced json/i }));
     expect(screen.getByDisplayValue(/"target": 50/)).toBeInTheDocument();
 
     const submitButton = screen.getByRole('button', { name: /verify/i });
