@@ -16,5 +16,8 @@ export {
   UnknownGameError,
   InvalidBetParamsError,
   IdempotencyConflictError,
+  RoundNotFoundError,
+  RoundVersionConflictError,
+  InvalidRoundStateError,
   isAppError,
 } from './errors.js';

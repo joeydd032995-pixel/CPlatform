@@ -88,6 +88,15 @@ export const MinesParamsSchema = z
 
 export type MinesParams = z.infer<typeof MinesParamsSchema>;
 
+// Round-start params for the cash-out flow: just the mine count -- `picks`
+// no longer belongs here since tiles are now revealed one at a time via
+// separate round-action calls rather than chosen all upfront.
+export const MinesRoundStartParamsSchema = z.object({
+  mines: z.number().int().min(1).max(24),
+});
+
+export type MinesRoundStartParams = z.infer<typeof MinesRoundStartParamsSchema>;
+
 export function minesMultiplier(mines: number, picks: number): number {
   if (picks === 0) return 1;
   return applyHouseEdge(

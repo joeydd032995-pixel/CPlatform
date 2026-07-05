@@ -7,6 +7,7 @@ export {
   calculateMinesPositions,
   deriveRevealOrder,
   MinesParamsSchema,
+  MinesRoundStartParamsSchema,
   minesMultiplier,
   resolveMines,
   deriveMinesRoundState,
@@ -15,6 +16,7 @@ export {
 export type {
   MinesRNGOptions,
   MinesParams,
+  MinesRoundStartParams,
   MinesOutcome,
   MinesRoundState,
 } from './mines.js';

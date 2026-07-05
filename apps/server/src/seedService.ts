@@ -12,6 +12,15 @@ export interface SeedService {
   updateClientSeed(userId: string, newClientSeed: string): Promise<void>;
   rotateServerSeed(userId: string): Promise<RevealedSeedRecord>;
   reserveNextNonce(userId: string): Promise<SeedTuple>;
+  // Internal-only (never exposed via any HTTP route): reads the currently
+  // active raw server seed WITHOUT reserving a new nonce, unlike
+  // reserveNextNonce. Needed by roundService to re-derive a still-open
+  // round's float stream across multiple action requests, since a round
+  // reserves exactly one nonce at start and every subsequent action must
+  // replay against that same nonce, not a fresh one.
+  peekActiveSeed(
+    userId: string
+  ): Promise<{ serverSeed: string; serverSeedHash: string; clientSeed: string }>;
 }
 
 function parseHistory(raw: string[]): RevealedSeedRecord[] {
@@ -100,11 +109,27 @@ export function createSeedService(store: SeedStore): SeedService {
     return store.reserveNonce(userId);
   }
 
+  async function peekActiveSeed(
+    userId: string
+  ): Promise<{ serverSeed: string; serverSeedHash: string; clientSeed: string }> {
+    await ensureSeedState(userId);
+    const fields = await store.getFields(userId);
+    if (!fields) {
+      throw new Error(`Seed state for user ${userId} unexpectedly missing after ensure`);
+    }
+    return {
+      serverSeed: fields.activeServerSeed,
+      serverSeedHash: fields.activeServerSeedHash,
+      clientSeed: fields.activeClientSeed,
+    };
+  }
+
   return {
     ensureSeedState,
     getPublicSeedState,
     updateClientSeed,
     rotateServerSeed,
     reserveNextNonce,
+    peekActiveSeed,
   };
 }

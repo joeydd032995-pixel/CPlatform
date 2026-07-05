@@ -4,10 +4,12 @@ import { buildApp } from '../../src/app.js';
 import type { AppDeps } from '../../src/app.js';
 import { createSeedService } from '../../src/seedService.js';
 import { createGameService } from '../../src/gameService.js';
+import { createRoundService } from '../../src/roundService.js';
 import {
   InMemorySeedStore,
   InMemoryIdempotencyStore,
   createFakeDb,
+  createFakeRoundDb,
   createFakeUserDb,
   createFakeEnsureUser,
 } from './inMemoryStores.js';
@@ -28,6 +30,7 @@ function createNeverLimitingRateLimitStore(): RateLimitCounter {
 export interface TestAppHarness {
   app: Express;
   db: ReturnType<typeof createFakeDb>;
+  roundDb: ReturnType<typeof createFakeRoundDb>;
 }
 
 export function buildTestApp(overrides: Partial<AppDeps['env']> = {}): TestAppHarness {
@@ -35,12 +38,15 @@ export function buildTestApp(overrides: Partial<AppDeps['env']> = {}): TestAppHa
   const seedService = createSeedService(seedStore);
   const idempotency = new InMemoryIdempotencyStore();
   const db = createFakeDb();
+  const roundDb = createFakeRoundDb(db);
   const ensureUser = createFakeEnsureUser(db);
   const userDb = createFakeUserDb(db);
   const gameService = createGameService({ db, seedService, idempotency });
+  const roundService = createRoundService({ db: roundDb, seedService, idempotency });
 
   const app = buildApp({
     gameService,
+    roundService,
     seedService,
     idempotency,
     rateLimitStore: createNeverLimitingRateLimitStore(),
@@ -51,5 +57,5 @@ export function buildTestApp(overrides: Partial<AppDeps['env']> = {}): TestAppHa
     logger,
   });
 
-  return { app, db };
+  return { app, db, roundDb };
 }

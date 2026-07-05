@@ -5,6 +5,8 @@ import { RedisIdempotencyStore } from './idempotency.js';
 import { createSeedService } from './seedService.js';
 import { createGameService } from './gameService.js';
 import type { GameDb } from './gameService.js';
+import { createRoundService } from './roundService.js';
+import type { RoundDb } from './roundService.js';
 import type { EnsureUser } from './middleware/auth.js';
 import type { UserDb } from './routes/me.js';
 import { buildApp } from './app.js';
@@ -63,6 +65,10 @@ export async function createApp(): Promise<Express> {
   const dbModuleSpecifier = '@cplatform/db';
   const { prisma } = await import(dbModuleSpecifier);
   const db = prisma as unknown as GameDb;
+  // Same structural-compatibility rationale as the `db` cast above --
+  // Prisma's real client (once `Round` is generated) is a superset of
+  // RoundDb's shape.
+  const roundDb = prisma as unknown as RoundDb;
 
   const ensureUser: EnsureUser = {
     async ensureUser(userId: string): Promise<void> {
@@ -92,12 +98,20 @@ export async function createApp(): Promise<Express> {
     betLimits: { min: env.MIN_BET_AMOUNT, max: env.MAX_BET_AMOUNT },
   });
 
+  const roundService = createRoundService({
+    db: roundDb,
+    seedService,
+    idempotency,
+    betLimits: { min: env.MIN_BET_AMOUNT, max: env.MAX_BET_AMOUNT },
+  });
+
   // Same structural-compatibility rationale as the `db`/`ensureUser` casts
   // above: prisma.user.findUnique is a superset of UserDb's shape.
   const userDb = prisma as unknown as UserDb;
 
   return buildApp({
     gameService,
+    roundService,
     seedService,
     idempotency,
     rateLimitStore: redis,

@@ -4,6 +4,7 @@ import cors from 'cors';
 import { pinoHttp } from 'pino-http';
 import type { Logger } from '@cplatform/shared';
 import type { createGameService } from './gameService.js';
+import type { createRoundService } from './roundService.js';
 import type { SeedService } from './seedService.js';
 import type { IdempotencyStore } from './idempotency.js';
 import type { RateLimitCounter } from './middleware/rateLimit.js';
@@ -13,6 +14,7 @@ import { perUserRateLimit, perIpRateLimit } from './middleware/rateLimit.js';
 import { createJurisdictionGate } from './middleware/jurisdiction.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { createGamesRouter } from './routes/games.js';
+import { createRoundsRouter } from './routes/rounds.js';
 import { createSeedsRouter } from './routes/seeds.js';
 import { createVerifyRouter } from './routes/verify.js';
 import { createMeRouter } from './routes/me.js';
@@ -20,6 +22,7 @@ import type { UserDb } from './routes/me.js';
 
 export interface AppDeps {
   gameService: ReturnType<typeof createGameService>;
+  roundService: ReturnType<typeof createRoundService>;
   seedService: SeedService;
   idempotency: IdempotencyStore | null;
   rateLimitStore: RateLimitCounter;
@@ -35,8 +38,18 @@ export interface AppDeps {
 }
 
 export function buildApp(deps: AppDeps): Express {
-  const { gameService, seedService, idempotency, rateLimitStore, jurisdictionFlags, ensureUser, userDb, env, logger } =
-    deps;
+  const {
+    gameService,
+    roundService,
+    seedService,
+    idempotency,
+    rateLimitStore,
+    jurisdictionFlags,
+    ensureUser,
+    userDb,
+    env,
+    logger,
+  } = deps;
 
   const app = express();
 
@@ -96,6 +109,10 @@ export function buildApp(deps: AppDeps): Express {
   app.use(
     '/api/games',
     createGamesRouter({ gameService, jurisdictionGate: createJurisdictionGate(jurisdictionFlags) })
+  );
+  app.use(
+    '/api/rounds',
+    createRoundsRouter({ roundService, jurisdictionGate: createJurisdictionGate(jurisdictionFlags) })
   );
   app.use('/api/seeds', createSeedsRouter({ seedService, idempotency }));
   app.use('/api/me', createMeRouter({ userDb }));
