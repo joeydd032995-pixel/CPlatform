@@ -1,7 +1,7 @@
 {
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
-    "api/index.ts": {
+    "api/index.js": {
       "includeFiles": "../../{node_modules/.prisma,node_modules/@prisma,packages/db}/**"
     }
   }

@@ -10,7 +10,7 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "vercel-build": "npm --prefix ../../packages/db run prisma:generate"
+    "vercel-build": "node scripts/bundle-for-vercel.mjs"
   },
   "dependencies": {
     "@cplatform/core-rng": "*",
@@ -31,6 +31,7 @@
     "@types/cors": "^2.8.17",
     "@types/supertest": "^6.0.2",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "esbuild": "^0.21.5"
   }
 }
