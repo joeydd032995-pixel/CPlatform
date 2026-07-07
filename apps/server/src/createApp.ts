@@ -138,11 +138,22 @@ export async function createApp(): Promise<Express> {
           }): Promise<unknown>;
         };
       };
-      await userDb.user.upsert({
-        where: { id: userId },
-        update: {},
-        create: { id: userId, balance: STARTING_BALANCE },
-      });
+      try {
+        await userDb.user.upsert({
+          where: { id: userId },
+          update: {},
+          create: { id: userId, balance: STARTING_BALANCE },
+        });
+      } catch (err) {
+        // Prisma's upsert is not always translated to an atomic
+        // INSERT ... ON CONFLICT -- under concurrent first-ever requests
+        // for the same user id (e.g. a page firing several API calls at
+        // once), two upserts can both observe "no row" and race the
+        // INSERT; the loser throws P2002 (unique constraint violation).
+        // Losing that race means the row now exists, which is exactly the
+        // postcondition ensureUser exists to guarantee -- so swallow it.
+        if ((err as { code?: string }).code !== 'P2002') throw err;
+      }
     },
   };
 
