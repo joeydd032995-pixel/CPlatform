@@ -57,6 +57,33 @@ describe('logger redaction (via the real createLogger factory)', () => {
     expect(lines[0]).toContain('mines');
     expect(lines[0]).toContain('10');
   });
+
+  it('serializes an err field including its message and stack (not just own enumerable props)', () => {
+    const { testLogger, lines } = makeCapturingLogger();
+    testLogger.error({ err: new Error('database connection refused') }, 'Unhandled error');
+    expect(lines[0]).toContain('database connection refused');
+    const parsed = JSON.parse(lines[0]!);
+    expect(parsed.err.stack).toBeTruthy();
+  });
+
+  it('does not duplicate name/type for an error whose own `name` property was set (e.g. `this.name = ...` in a subclass constructor)', () => {
+    const err = new Error('boom');
+    err.name = 'CustomError'; // own enumerable property, shadowing Error.prototype.name
+    const { testLogger, lines } = makeCapturingLogger();
+    testLogger.error({ err }, 'Unhandled error');
+    const parsed = JSON.parse(lines[0]!);
+    expect(parsed.err.type).toBe('CustomError');
+    expect(parsed.err.name).toBeUndefined();
+  });
+
+  it('does not stack-overflow on a circular property on an Error (e.g. a self-referencing cause)', () => {
+    const { testLogger, lines } = makeCapturingLogger();
+    const err = new Error('circular') as Error & { cause?: unknown };
+    err.cause = err;
+    expect(() => testLogger.error({ err }, 'Unhandled error')).not.toThrow();
+    const parsed = JSON.parse(lines[0]!);
+    expect(parsed.err.cause).toBe('[Circular]');
+  });
 });
 
 describe('deepRedact (unit-level, the actual redaction function production uses)', () => {
