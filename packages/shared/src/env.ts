@@ -8,8 +8,18 @@ import { z } from 'zod';
 
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().url(),
+  // Opt-in demo mode: the server runs entirely on in-memory stores (no
+  // Postgres, no Redis) so the platform can be tried out with zero
+  // infrastructure. All state resets on restart and is not shared across
+  // serverless instances -- never for real money. When true, DATABASE_URL
+  // and REDIS_URL become optional (see the refine below); when false they
+  // are required exactly as before.
+  DEMO_MODE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
+  DATABASE_URL: z.string().url().optional(),
+  REDIS_URL: z.string().url().optional(),
   PORT: z.coerce.number().int().positive().default(4000),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
   RNG_VERSION: z.enum(['1.1']).default('1.1'),
@@ -46,7 +56,18 @@ export const EnvSchema = z.object({
       message: 'MIN_BET_AMOUNT must be less than or equal to MAX_BET_AMOUNT',
       path: ['MIN_BET_AMOUNT'],
     }
-  );
+  )
+  // Outside demo mode the platform cannot function without real persistence
+  // -- fail fast at parse time with a pointed message rather than letting a
+  // missing URL surface later as an opaque connection error.
+  .refine((env) => env.DEMO_MODE || env.DATABASE_URL !== undefined, {
+    message: 'DATABASE_URL is required unless DEMO_MODE=true',
+    path: ['DATABASE_URL'],
+  })
+  .refine((env) => env.DEMO_MODE || env.REDIS_URL !== undefined, {
+    message: 'REDIS_URL is required unless DEMO_MODE=true',
+    path: ['REDIS_URL'],
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 

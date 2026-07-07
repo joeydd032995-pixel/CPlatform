@@ -74,10 +74,22 @@ the server's URL explicitly.
   `http://localhost:4000` (the docker-compose/local-dev default), which
   doesn't exist in Vercel's environment — every `/api/*` request from the
   browser fails outright (shows up as the header's balance stuck on `--`).
-- `c-platform-server`'s production environment needs `CORS_ORIGIN` set (the
-  server fails fast at boot in production if it's unset — see `CLAUDE.md`)
-  and, if you want a Postgres/Redis-backed deployment, `DATABASE_URL`/
-  `REDIS_URL` pointing at real managed instances.
+- **Easiest way to get a playable deployment: set `DEMO_MODE=true`** on
+  `c-platform-server` (Production scope) and redeploy. The server then runs
+  entirely on in-memory stores — no Postgres, no Redis, no `DATABASE_URL`/
+  `REDIS_URL` needed. Every visitor is auto-provisioned with the starting
+  balance, all 9 games work, and the provably-fair seed
+  commitment/rotation/verification flow works normally. Trade-offs: all
+  state (balances, bets, seed history, open rounds) lives in one function
+  instance's memory, so it resets on every cold start and is **not** shared
+  between concurrently-warm serverless instances — balances can appear to
+  jump if consecutive requests land on different instances. For trying the
+  games out only; never for real money. (`CORS_ORIGIN` is still required in
+  production, demo mode or not.)
+- Without demo mode, `c-platform-server`'s production environment needs
+  `CORS_ORIGIN` set (the server fails fast at boot in production if it's
+  unset — see `CLAUDE.md`) and `DATABASE_URL`/`REDIS_URL` pointing at real
+  managed instances.
   - A pooled Postgres connection (e.g. Supabase's Supavisor pooler) needs
     `?pgbouncer=true` appended to `DATABASE_URL` — Prisma's default use of
     prepared statements isn't compatible with transaction-mode pooling
