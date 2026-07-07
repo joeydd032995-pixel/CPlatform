@@ -57,6 +57,15 @@ describe('parseEnv', () => {
     expect(env.REDIS_URL).toBe(VALID_ENV.REDIS_URL);
   });
 
+  it('falls back to UPSTASH_URL when REDIS_URL is an empty string (some tooling sets omitted vars to "")', () => {
+    const env = parseEnv({
+      ...VALID_ENV,
+      REDIS_URL: '',
+      UPSTASH_URL: 'rediss://default:token@upstash.example.com:6379',
+    });
+    expect(env.REDIS_URL).toBe('rediss://default:token@upstash.example.com:6379');
+  });
+
   it('rejects a non-URL DATABASE_URL', () => {
     expect(() => parseEnv({ ...VALID_ENV, DATABASE_URL: 'not-a-url' })).toThrow(EnvValidationError);
   });

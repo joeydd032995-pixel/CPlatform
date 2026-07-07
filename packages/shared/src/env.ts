@@ -70,10 +70,13 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
   // requiring every deployment to duplicate the value under a second
   // variable name, fall back to `UPSTASH_URL` only when `REDIS_URL` itself
   // isn't set -- an explicit `REDIS_URL` always wins, so this can't
-  // silently override an intentionally-configured value.
+  // silently override an intentionally-configured value. `||` (not `??`)
+  // deliberately also treats an empty string the same as unset -- some
+  // deployment tooling sets omitted variables to `""` rather than leaving
+  // the key absent, and an empty string is never a valid URL anyway.
   const normalized = {
     ...source,
-    REDIS_URL: source.REDIS_URL ?? source.UPSTASH_URL,
+    REDIS_URL: source.REDIS_URL || source.UPSTASH_URL,
   };
   const result = EnvSchema.safeParse(normalized);
   if (!result.success) {
