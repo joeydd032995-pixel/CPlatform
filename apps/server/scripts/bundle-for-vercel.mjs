@@ -25,7 +25,7 @@
 // @cplatform/db to JS and repoints its `main`/`types` at that build output
 // (again, only inside this ephemeral checkout).
 import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, rmSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
@@ -33,10 +33,22 @@ import * as esbuild from 'esbuild';
 const serverDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(serverDir, '../..');
 const dbDir = path.join(repoRoot, 'packages/db');
+const entry = path.join(serverDir, 'api/index.ts');
+const deployedEntry = path.join(serverDir, 'api/index.js');
 
 function run(cmd, cwd) {
   console.log(`$ ${cmd}`);
   execSync(cmd, { cwd, stdio: 'inherit' });
+}
+
+// Vercel appears to invoke `vercel-build` more than once for this project
+// in a single deployment. Since step 4 below deletes api/index.ts and
+// writes api/index.js in its place, a second invocation would otherwise
+// fail with "Could not resolve api/index.ts" -- make the whole script a
+// no-op once that swap has already happened.
+if (!existsSync(entry) && existsSync(deployedEntry)) {
+  console.log('api/index.js already bundled by a prior invocation -- skipping.');
+  process.exit(0);
 }
 
 // 1. Generate the Prisma client (network access to the engine-binary CDN,
@@ -64,7 +76,6 @@ writeFileSync(dbPkgPath, JSON.stringify(dbPkg, null, 2) + '\n');
 // output can't support pino's dynamic `require("node:os")`-style lazy
 // loads). @cplatform/db is external for the separate reason in the comment
 // above: its dynamic non-literal import must stay a genuine runtime import.
-const entry = path.join(serverDir, 'api/index.ts');
 const outfile = path.join(serverDir, 'api/index.bundle.js');
 await esbuild.build({
   entryPoints: [entry],
@@ -81,7 +92,6 @@ await esbuild.build({
 // api/index.ts so Vercel's function-detection step (which runs after this
 // build command finishes) finds exactly one unambiguous entry file.
 rmSync(entry);
-writeFileSync(path.join(serverDir, 'api/index.js'), readFileSync(outfile));
-rmSync(outfile);
+renameSync(outfile, deployedEntry);
 
 console.log('Bundled api/index.js for Vercel deployment.');
