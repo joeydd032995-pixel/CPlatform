@@ -163,7 +163,37 @@ export class InMemoryRateLimitCounter implements RateLimitCounter {
 
 type InMemoryUser = { id: string; balance: number };
 
-export function createInMemoryDb(): GameDb & { users: Map<string, InMemoryUser>; bets: BetRecord[] } {
+// Serializes async "transactions" behind a single tail promise so their
+// bodies never actually run concurrently, even when callers kick them off
+// concurrently. One queue instance is SHARED between createInMemoryDb and
+// createInMemoryRoundDb (the round DB reuses the game DB's queue via the
+// `txQueue` it receives): they mutate the same `users`/`bets` state, so if
+// each kept its own queue, a concurrent game transaction and round
+// transaction could snapshot the same balance and the later commit would
+// clobber the earlier one's write -- exactly the lost update the queue
+// exists to prevent.
+export type TxQueue = { run<T>(fn: () => Promise<T>): Promise<T> };
+
+function createTxQueue(): TxQueue {
+  let tail: Promise<unknown> = Promise.resolve();
+  return {
+    run<T>(fn: () => Promise<T>): Promise<T> {
+      const result = tail.then(() => fn());
+      // Keep the queue moving regardless of whether this transaction
+      // succeeded or failed; the caller still sees `result`'s real
+      // rejection, this just prevents one failed transaction from wedging
+      // every subsequent one.
+      tail = result.catch(() => undefined);
+      return result;
+    },
+  };
+}
+
+export function createInMemoryDb(): GameDb & {
+  users: Map<string, InMemoryUser>;
+  bets: BetRecord[];
+  txQueue: TxQueue;
+} {
   const users = new Map<string, InMemoryUser>();
   const bets: BetRecord[] = [];
 
@@ -177,10 +207,9 @@ export function createInMemoryDb(): GameDb & { users: Map<string, InMemoryUser>;
   // `Promise.all` would each snapshot `users` at nearly the same time and
   // the second commit would clobber the first's write (a classic lost
   // update). To honestly stand in for a real serializable transaction
-  // under the concurrency tests, every call queues behind a single tail
-  // promise below so transaction BODIES never actually run concurrently
-  // with each other, even though callers can kick them off concurrently.
-  let tail: Promise<unknown> = Promise.resolve();
+  // under concurrency, every call runs through the shared TxQueue so
+  // transaction BODIES never actually run concurrently with each other.
+  const txQueue = createTxQueue();
 
   async function runTransaction<T>(fn: (tx: GameTx) => Promise<T>): Promise<T> {
     const stagedUsers = new Map(users);
@@ -233,22 +262,17 @@ export function createInMemoryDb(): GameDb & { users: Map<string, InMemoryUser>;
       return result;
   }
 
-  const db: GameDb & { users: Map<string, InMemoryUser>; bets: BetRecord[] } = {
+  const db: GameDb & { users: Map<string, InMemoryUser>; bets: BetRecord[]; txQueue: TxQueue } = {
     users,
     bets,
+    txQueue,
     bet: {
       async findUnique({ where }) {
         return bets.find((b) => b.idempotencyKey === where.idempotencyKey) ?? null;
       },
     },
     $transaction<T>(fn: (tx: GameTx) => Promise<T>): Promise<T> {
-      const result = tail.then(() => runTransaction(fn));
-      // Keep the queue moving regardless of whether this transaction
-      // succeeded or failed; the caller still sees `result`'s real
-      // rejection, this just prevents one failed transaction from wedging
-      // every subsequent one.
-      tail = result.catch(() => undefined);
-      return result;
+      return txQueue.run(() => runTransaction(fn));
     },
   };
 
@@ -260,16 +284,17 @@ export function createInMemoryDb(): GameDb & { users: Map<string, InMemoryUser>;
 // mutations) and adds its own `rounds` Map with the same version-based
 // compare-and-swap semantics roundService.ts relies on in production
 // against a real `updateMany({ where: { version } })` call.
+//
+// It also REUSES the game DB's TxQueue rather than creating its own: both
+// factories snapshot-and-commit the shared `users`/`bets` maps, so with two
+// independent queues a concurrent game transaction and round transaction
+// could each snapshot the same balance and the later commit would clobber
+// the earlier one's write (a lost update the queue exists to prevent).
 export function createInMemoryRoundDb(
-  db: { users: Map<string, InMemoryUser>; bets: BetRecord[] }
+  db: { users: Map<string, InMemoryUser>; bets: BetRecord[]; txQueue: TxQueue }
 ): RoundDb & { rounds: Map<string, RoundRecord> } {
-  const { users, bets } = db;
+  const { users, bets, txQueue } = db;
   const rounds = new Map<string, RoundRecord>();
-
-  // Same "serialize behind a tail promise" rationale as createInMemoryDb's
-  // own transaction queue above -- a real DB transaction can't interleave
-  // with another either.
-  let tail: Promise<unknown> = Promise.resolve();
 
   async function runTransaction<T>(fn: (tx: RoundTx) => Promise<T>): Promise<T> {
     const stagedUsers = new Map(users);
@@ -372,9 +397,7 @@ export function createInMemoryRoundDb(
       },
     },
     $transaction<T>(fn: (tx: RoundTx) => Promise<T>): Promise<T> {
-      const result = tail.then(() => runTransaction(fn));
-      tail = result.catch(() => undefined);
-      return result;
+      return txQueue.run(() => runTransaction(fn));
     },
   };
 
