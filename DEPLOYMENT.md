@@ -78,6 +78,16 @@ the server's URL explicitly.
   server fails fast at boot in production if it's unset — see `CLAUDE.md`)
   and, if you want a Postgres/Redis-backed deployment, `DATABASE_URL`/
   `REDIS_URL` pointing at real managed instances.
+  - A pooled Postgres connection (e.g. Supabase's Supavisor pooler) needs
+    `?pgbouncer=true` appended to `DATABASE_URL` — Prisma's default use of
+    prepared statements isn't compatible with transaction-mode pooling
+    otherwise, surfacing as intermittent `bind message supplies N
+    parameters...` errors under concurrent/serverless load.
+  - If your Redis provider's Vercel integration names its generated
+    variable something other than `REDIS_URL` (e.g. Upstash's `UPSTASH_URL`
+    in some setups), you don't need to duplicate it: `parseEnv` falls back
+    to `UPSTASH_URL` when `REDIS_URL` itself is unset (an explicit
+    `REDIS_URL` always takes precedence — see `packages/shared/src/env.ts`).
 
 ## Notes & troubleshooting
 

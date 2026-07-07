@@ -46,6 +46,17 @@ describe('parseEnv', () => {
     expect(() => parseEnv(rest)).toThrow(EnvValidationError);
   });
 
+  it('falls back to UPSTASH_URL when REDIS_URL is unset', () => {
+    const { REDIS_URL, ...rest } = VALID_ENV;
+    const env = parseEnv({ ...rest, UPSTASH_URL: 'rediss://default:token@upstash.example.com:6379' });
+    expect(env.REDIS_URL).toBe('rediss://default:token@upstash.example.com:6379');
+  });
+
+  it('prefers an explicit REDIS_URL over UPSTASH_URL when both are set', () => {
+    const env = parseEnv({ ...VALID_ENV, UPSTASH_URL: 'rediss://default:token@upstash.example.com:6379' });
+    expect(env.REDIS_URL).toBe(VALID_ENV.REDIS_URL);
+  });
+
   it('rejects a non-URL DATABASE_URL', () => {
     expect(() => parseEnv({ ...VALID_ENV, DATABASE_URL: 'not-a-url' })).toThrow(EnvValidationError);
   });

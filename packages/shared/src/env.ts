@@ -63,7 +63,19 @@ export class EnvValidationError extends Error {
 }
 
 export function parseEnv(source: Record<string, string | undefined> = process.env): Env {
-  const result = EnvSchema.safeParse(source);
+  // Vercel's Upstash integration (and some other Redis-provider
+  // integrations) name their generated connection-string variable
+  // `UPSTASH_URL` rather than `REDIS_URL`, and its "custom prefix" setting
+  // doesn't offer a blank/no-prefix option in every version. Rather than
+  // requiring every deployment to duplicate the value under a second
+  // variable name, fall back to `UPSTASH_URL` only when `REDIS_URL` itself
+  // isn't set -- an explicit `REDIS_URL` always wins, so this can't
+  // silently override an intentionally-configured value.
+  const normalized = {
+    ...source,
+    REDIS_URL: source.REDIS_URL ?? source.UPSTASH_URL,
+  };
+  const result = EnvSchema.safeParse(normalized);
   if (!result.success) {
     throw new EnvValidationError(result.error);
   }
