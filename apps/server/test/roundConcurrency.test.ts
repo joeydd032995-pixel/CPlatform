@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRoundService } from '../src/roundService.js';
+import { createGameService } from '../src/gameService.js';
 import { createSeedService } from '../src/seedService.js';
 import { RoundVersionConflictError, IdempotencyConflictError } from '@cplatform/shared';
 import {
@@ -22,9 +23,46 @@ function buildHarness(startingBalance = 1000) {
   const db = createFakeDb();
   const roundDb = createFakeRoundDb(db);
   const ensureUser = createFakeEnsureUser(db, startingBalance);
+  const gameService = createGameService({ db, seedService, idempotency });
   const roundService = createRoundService({ db: roundDb, seedService, idempotency });
-  return { seedService, idempotency, db, roundDb, ensureUser, roundService };
+  return { seedService, idempotency, db, roundDb, ensureUser, gameService, roundService };
 }
+
+describe('Cross-service concurrency: one-shot bets and round starts share one transaction queue', () => {
+  // The game DB and round DB share the same in-memory users/bets state, so
+  // their transactions must serialize through ONE queue -- with independent
+  // queues, a concurrent one-shot bet and round start could snapshot the
+  // same balance and the later commit would silently undo the earlier
+  // debit/credit (a lost update). This drives both services against the
+  // same user simultaneously and checks the final balance accounts for
+  // every single debit and payout.
+  it('10 one-shot bets + 10 round starts fired concurrently lose no balance mutations', async () => {
+    const { db, ensureUser, gameService, roundService } = buildHarness(10_000);
+    const userId = 'user-cross-service-concurrent';
+    await ensureUser.ensureUser(userId);
+
+    const results = await Promise.all([
+      ...Array.from({ length: 10 }, () =>
+        gameService.playGame({
+          userId,
+          betAmount: 10,
+          game: 'dice',
+          params: { target: 50, direction: 'under' },
+        })
+      ),
+      ...Array.from({ length: 10 }, () =>
+        roundService.startMinesRound({ userId, betAmount: 10, mines: 3 })
+      ),
+    ]);
+
+    const dicePayouts = results
+      .slice(0, 10)
+      .reduce((sum, r) => sum + (r as { payout: number }).payout, 0);
+    // Open Mines rounds have debited their stake but paid nothing yet.
+    const expected = 10_000 - 20 * 10 + dicePayouts;
+    expect(db.users.get(userId)!.balance).toBeCloseTo(expected, 6);
+  });
+});
 
 describe('Round action concurrency: Mines', () => {
   it('20 concurrent duplicate reveal requests against the same round: exactly one succeeds, the rest conflict', async () => {

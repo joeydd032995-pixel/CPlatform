@@ -46,11 +46,20 @@ describe.skipIf(!process.env.CI)('bet lifecycle (integration)', () => {
         const userDb = dbModule.prisma as unknown as {
           user: { upsert(args: unknown): Promise<unknown> };
         };
-        await userDb.user.upsert({
-          where: { id },
-          update: {},
-          create: { id, balance: 1000 },
-        });
+        try {
+          await userDb.user.upsert({
+            where: { id },
+            update: {},
+            create: { id, balance: 1000 },
+          });
+        } catch (err) {
+          // Same rationale as createApp.ts's ensureUser: Prisma's upsert
+          // is not always atomic, so concurrent first-ever requests (the
+          // 20-way concurrency test below) can race the INSERT; the loser
+          // throws P2002, and losing that race means the row exists --
+          // exactly the postcondition this function guarantees.
+          if ((err as { code?: string }).code !== 'P2002') throw err;
+        }
       },
     };
 

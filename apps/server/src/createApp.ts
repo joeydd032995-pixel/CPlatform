@@ -10,6 +10,20 @@ import type { RoundDb } from './roundService.js';
 import type { EnsureUser } from './middleware/auth.js';
 import type { UserDb } from './routes/me.js';
 import { buildApp } from './app.js';
+import {
+  InMemorySeedStore,
+  InMemoryIdempotencyStore,
+  InMemoryRateLimitCounter,
+  createInMemoryDb,
+  createInMemoryRoundDb,
+  createInMemoryUserDb,
+  createInMemoryEnsureUser,
+} from './inMemoryStores.js';
+
+// New users are auto-provisioned with this balance on first request (there
+// is no signup flow). One constant shared by both the real-Postgres and
+// demo-mode wiring below so the two can't drift apart.
+const STARTING_BALANCE = 11000;
 
 // Extracted from index.ts so the same wiring is shared between the local
 // dev entrypoint (index.ts, which calls app.listen()) and the Vercel
@@ -36,6 +50,47 @@ export async function createApp(): Promise<Express> {
     throw new Error(
       'CORS_ORIGIN must be set in production. Refusing to start: without it, the API would reflect ANY origin. Set CORS_ORIGIN to an explicit comma-separated allowlist (e.g. "https://app.example.com").'
     );
+  }
+
+  const betLimits = { min: env.MIN_BET_AMOUNT, max: env.MAX_BET_AMOUNT };
+  const appEnv = { ...env, NODE_ENV: env.NODE_ENV ?? 'development', corsOrigins };
+
+  // DEMO_MODE: run the entire platform against in-memory stores -- no
+  // Postgres, no Redis, nothing to provision. Every visitor is
+  // auto-provisioned with the starting balance and can play all 9 games;
+  // provably-fair seed commitment/rotation/verification all work normally
+  // within one process. The trade-off (also documented in DEPLOYMENT.md and
+  // inMemoryStores.ts): all state resets on restart, and on serverless
+  // platforms it is NOT shared across concurrently-warm instances. For
+  // trying the games out only -- never for real money.
+  if (env.DEMO_MODE) {
+    logger.warn(
+      'DEMO_MODE=true: running on in-memory stores (no Postgres/Redis). All balances, bets, rounds, and seed history reset on restart and are not shared across serverless instances.'
+    );
+    const seedService = createSeedService(new InMemorySeedStore());
+    const idempotency = new InMemoryIdempotencyStore();
+    const db = createInMemoryDb();
+    const roundDb = createInMemoryRoundDb(db);
+    return buildApp({
+      gameService: createGameService({ db, seedService, idempotency, betLimits }),
+      roundService: createRoundService({ db: roundDb, seedService, idempotency, betLimits }),
+      seedService,
+      idempotency,
+      rateLimitStore: new InMemoryRateLimitCounter(),
+      jurisdictionFlags,
+      ensureUser: createInMemoryEnsureUser(db, STARTING_BALANCE),
+      userDb: createInMemoryUserDb(db),
+      env: appEnv,
+      logger,
+    });
+  }
+
+  // Non-demo mode: real persistence is mandatory. loadEnv() already
+  // enforces this (DATABASE_URL/REDIS_URL are only optional when
+  // DEMO_MODE=true), so this guard exists to narrow the types and to fail
+  // loudly if that invariant ever regresses.
+  if (!env.DATABASE_URL || !env.REDIS_URL) {
+    throw new Error('DATABASE_URL and REDIS_URL are required unless DEMO_MODE=true');
   }
 
   const redis = createRedisClient(env.REDIS_URL);
@@ -83,27 +138,28 @@ export async function createApp(): Promise<Express> {
           }): Promise<unknown>;
         };
       };
-      await userDb.user.upsert({
-        where: { id: userId },
-        update: {},
-        create: { id: userId, balance: 11000 },
-      });
+      try {
+        await userDb.user.upsert({
+          where: { id: userId },
+          update: {},
+          create: { id: userId, balance: STARTING_BALANCE },
+        });
+      } catch (err) {
+        // Prisma's upsert is not always translated to an atomic
+        // INSERT ... ON CONFLICT -- under concurrent first-ever requests
+        // for the same user id (e.g. a page firing several API calls at
+        // once), two upserts can both observe "no row" and race the
+        // INSERT; the loser throws P2002 (unique constraint violation).
+        // Losing that race means the row now exists, which is exactly the
+        // postcondition ensureUser exists to guarantee -- so swallow it.
+        if ((err as { code?: string }).code !== 'P2002') throw err;
+      }
     },
   };
 
-  const gameService = createGameService({
-    db,
-    seedService,
-    idempotency,
-    betLimits: { min: env.MIN_BET_AMOUNT, max: env.MAX_BET_AMOUNT },
-  });
+  const gameService = createGameService({ db, seedService, idempotency, betLimits });
 
-  const roundService = createRoundService({
-    db: roundDb,
-    seedService,
-    idempotency,
-    betLimits: { min: env.MIN_BET_AMOUNT, max: env.MAX_BET_AMOUNT },
-  });
+  const roundService = createRoundService({ db: roundDb, seedService, idempotency, betLimits });
 
   // Same structural-compatibility rationale as the `db`/`ensureUser` casts
   // above: prisma.user.findUnique is a superset of UserDb's shape.
@@ -118,17 +174,14 @@ export async function createApp(): Promise<Express> {
     jurisdictionFlags,
     ensureUser,
     userDb,
-    // Same class of environment-only discrepancy as the helmet cast in
-    // app.ts: locally (and in CI) `env.NODE_ENV` infers as required (zod's
-    // `.default()` guarantees a value after parsing), but Vercel's build
-    // has resolved a type where it's optional -- likely a caret-ranged
-    // zod/typescript version difference between this sandbox's lockfile
-    // resolution and Vercel's fresh install. `?? 'development'` strips the
-    // `| undefined` from the type unconditionally (it never actually fires
-    // at runtime -- loadEnv() already guarantees NODE_ENV is set), so this
-    // satisfies AppDeps's required `NODE_ENV: string` regardless of which
-    // way a given environment infers it.
-    env: { ...env, NODE_ENV: env.NODE_ENV ?? 'development', corsOrigins },
+    // appEnv's `NODE_ENV ?? 'development'` handles the same class of
+    // environment-only discrepancy as the helmet cast in app.ts: locally
+    // (and in CI) `env.NODE_ENV` infers as required (zod's `.default()`
+    // guarantees a value after parsing), but Vercel's build has resolved a
+    // type where it's optional -- the fallback never fires at runtime, it
+    // just satisfies AppDeps's required `NODE_ENV: string` regardless of
+    // which way a given environment infers it.
+    env: appEnv,
     logger,
   });
 }

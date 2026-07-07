@@ -46,6 +46,48 @@ describe('parseEnv', () => {
     expect(() => parseEnv(rest)).toThrow(EnvValidationError);
   });
 
+  it('falls back to UPSTASH_URL when REDIS_URL is unset', () => {
+    const { REDIS_URL, ...rest } = VALID_ENV;
+    const env = parseEnv({ ...rest, UPSTASH_URL: 'rediss://default:token@upstash.example.com:6379' });
+    expect(env.REDIS_URL).toBe('rediss://default:token@upstash.example.com:6379');
+  });
+
+  it('prefers an explicit REDIS_URL over UPSTASH_URL when both are set', () => {
+    const env = parseEnv({ ...VALID_ENV, UPSTASH_URL: 'rediss://default:token@upstash.example.com:6379' });
+    expect(env.REDIS_URL).toBe(VALID_ENV.REDIS_URL);
+  });
+
+  it('falls back to UPSTASH_URL when REDIS_URL is an empty string (some tooling sets omitted vars to "")', () => {
+    const env = parseEnv({
+      ...VALID_ENV,
+      REDIS_URL: '',
+      UPSTASH_URL: 'rediss://default:token@upstash.example.com:6379',
+    });
+    expect(env.REDIS_URL).toBe('rediss://default:token@upstash.example.com:6379');
+  });
+
+  it('DEMO_MODE=true makes DATABASE_URL and REDIS_URL optional', () => {
+    const { DATABASE_URL, REDIS_URL, ...rest } = VALID_ENV;
+    const env = parseEnv({ ...rest, DEMO_MODE: 'true' });
+    expect(env.DEMO_MODE).toBe(true);
+    expect(env.DATABASE_URL).toBeUndefined();
+    expect(env.REDIS_URL).toBeUndefined();
+  });
+
+  it('defaults DEMO_MODE to false and still requires DATABASE_URL/REDIS_URL', () => {
+    const env = parseEnv(VALID_ENV);
+    expect(env.DEMO_MODE).toBe(false);
+
+    const { DATABASE_URL, REDIS_URL, ...rest } = VALID_ENV;
+    expect(() => parseEnv(rest)).toThrow(EnvValidationError);
+    expect(() => parseEnv(rest)).toThrow(/unless DEMO_MODE=true/);
+  });
+
+  it('rejects a DEMO_MODE value that is not a recognized truthy string as false', () => {
+    const env = parseEnv({ ...VALID_ENV, DEMO_MODE: 'yes' });
+    expect(env.DEMO_MODE).toBe(false);
+  });
+
   it('rejects a non-URL DATABASE_URL', () => {
     expect(() => parseEnv({ ...VALID_ENV, DATABASE_URL: 'not-a-url' })).toThrow(EnvValidationError);
   });

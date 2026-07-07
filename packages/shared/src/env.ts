@@ -8,8 +8,18 @@ import { z } from 'zod';
 
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().url(),
+  // Opt-in demo mode: the server runs entirely on in-memory stores (no
+  // Postgres, no Redis) so the platform can be tried out with zero
+  // infrastructure. All state resets on restart and is not shared across
+  // serverless instances -- never for real money. When true, DATABASE_URL
+  // and REDIS_URL become optional (see the refine below); when false they
+  // are required exactly as before.
+  DEMO_MODE: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true' || v === '1'),
+  DATABASE_URL: z.string().url().optional(),
+  REDIS_URL: z.string().url().optional(),
   PORT: z.coerce.number().int().positive().default(4000),
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
   RNG_VERSION: z.enum(['1.1']).default('1.1'),
@@ -46,7 +56,18 @@ export const EnvSchema = z.object({
       message: 'MIN_BET_AMOUNT must be less than or equal to MAX_BET_AMOUNT',
       path: ['MIN_BET_AMOUNT'],
     }
-  );
+  )
+  // Outside demo mode the platform cannot function without real persistence
+  // -- fail fast at parse time with a pointed message rather than letting a
+  // missing URL surface later as an opaque connection error.
+  .refine((env) => env.DEMO_MODE || env.DATABASE_URL !== undefined, {
+    message: 'DATABASE_URL is required unless DEMO_MODE=true',
+    path: ['DATABASE_URL'],
+  })
+  .refine((env) => env.DEMO_MODE || env.REDIS_URL !== undefined, {
+    message: 'REDIS_URL is required unless DEMO_MODE=true',
+    path: ['REDIS_URL'],
+  });
 
 export type Env = z.infer<typeof EnvSchema>;
 
@@ -63,7 +84,22 @@ export class EnvValidationError extends Error {
 }
 
 export function parseEnv(source: Record<string, string | undefined> = process.env): Env {
-  const result = EnvSchema.safeParse(source);
+  // Vercel's Upstash integration (and some other Redis-provider
+  // integrations) name their generated connection-string variable
+  // `UPSTASH_URL` rather than `REDIS_URL`, and its "custom prefix" setting
+  // doesn't offer a blank/no-prefix option in every version. Rather than
+  // requiring every deployment to duplicate the value under a second
+  // variable name, fall back to `UPSTASH_URL` only when `REDIS_URL` itself
+  // isn't set -- an explicit `REDIS_URL` always wins, so this can't
+  // silently override an intentionally-configured value. `||` (not `??`)
+  // deliberately also treats an empty string the same as unset -- some
+  // deployment tooling sets omitted variables to `""` rather than leaving
+  // the key absent, and an empty string is never a valid URL anyway.
+  const normalized = {
+    ...source,
+    REDIS_URL: source.REDIS_URL || source.UPSTASH_URL,
+  };
+  const result = EnvSchema.safeParse(normalized);
   if (!result.success) {
     throw new EnvValidationError(result.error);
   }
