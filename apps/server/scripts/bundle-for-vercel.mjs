@@ -10,11 +10,21 @@
 // (`ERR_MODULE_NOT_FOUND`). This script fixes that for the Vercel deploy
 // only, without touching local dev/tests or any package's `main` field in
 // the committed repo: it bundles api/index.ts's whole workspace-package
-// dependency graph into one self-contained JS file with esbuild (which,
-// unlike Node, resolves and transpiles TypeScript directly), and replaces
-// the deployed api/index.ts with that bundle. This only ever runs inside
+// dependency graph into one self-contained file with esbuild (which,
+// unlike Node, resolves and transpiles TypeScript directly) and overwrites
+// api/index.ts's CONTENT with that bundle. This only ever runs inside
 // Vercel's ephemeral build checkout -- it never touches the actual git
 // history.
+//
+// Important: this rewrites the file's content in place rather than
+// deleting it and writing api/index.js. Vercel scans `api/` for functions
+// from the checked-out filesystem BEFORE running this build command, then
+// tries to actually build the function it found (api/index.ts) AFTER this
+// script runs -- deleting/renaming it out from under that second step
+// fails with "File not found: api/index.ts". Keeping the same filename
+// (now containing plain JS, which is always valid TypeScript too) means
+// Vercel's own per-function build step still finds exactly the file it
+// expects, just with different contents.
 //
 // @cplatform/db is the one exception: createApp.ts imports it via a
 // *non-literal* dynamic `import(dbModuleSpecifier)` specifically so esbuild
@@ -25,29 +35,29 @@
 // @cplatform/db to JS and repoints its `main`/`types` at that build output
 // (again, only inside this ephemeral checkout).
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, rmSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
+
+const BUNDLE_MARKER = '// __CPLATFORM_VERCEL_BUNDLE__';
 
 const serverDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(serverDir, '../..');
 const dbDir = path.join(repoRoot, 'packages/db');
 const entry = path.join(serverDir, 'api/index.ts');
-const deployedEntry = path.join(serverDir, 'api/index.js');
 
 function run(cmd, cwd) {
   console.log(`$ ${cmd}`);
   execSync(cmd, { cwd, stdio: 'inherit' });
 }
 
-// Vercel appears to invoke `vercel-build` more than once for this project
-// in a single deployment. Since step 4 below deletes api/index.ts and
-// writes api/index.js in its place, a second invocation would otherwise
-// fail with "Could not resolve api/index.ts" -- make the whole script a
-// no-op once that swap has already happened.
-if (!existsSync(entry) && existsSync(deployedEntry)) {
-  console.log('api/index.js already bundled by a prior invocation -- skipping.');
+// Vercel appears to invoke `vercel-build` more than once for a single
+// deployment. Since this script overwrites api/index.ts's content, detect
+// that (via a marker comment) and no-op on the second invocation rather
+// than re-bundling already-bundled code.
+if (readFileSync(entry, 'utf8').startsWith(BUNDLE_MARKER)) {
+  console.log('api/index.ts already bundled by a prior invocation -- skipping.');
   process.exit(0);
 }
 
@@ -88,10 +98,9 @@ await esbuild.build({
   logLevel: 'info',
 });
 
-// 4. Swap the bundle in as the deployed function, removing the raw
-// api/index.ts so Vercel's function-detection step (which runs after this
-// build command finishes) finds exactly one unambiguous entry file.
-rmSync(entry);
-renameSync(outfile, deployedEntry);
+// 4. Overwrite api/index.ts's content with the bundle (same filename/
+// extension, so Vercel's own function-detection manifest still matches).
+writeFileSync(entry, `${BUNDLE_MARKER}\n${readFileSync(outfile, 'utf8')}`);
+rmSync(outfile);
 
-console.log('Bundled api/index.js for Vercel deployment.');
+console.log('Bundled api/index.ts in place for Vercel deployment.');
