@@ -57,6 +57,14 @@ describe('logger redaction (via the real createLogger factory)', () => {
     expect(lines[0]).toContain('mines');
     expect(lines[0]).toContain('10');
   });
+
+  it('serializes an err field including its message and stack (not just own enumerable props)', () => {
+    const { testLogger, lines } = makeCapturingLogger();
+    testLogger.error({ err: new Error('database connection refused') }, 'Unhandled error');
+    expect(lines[0]).toContain('database connection refused');
+    const parsed = JSON.parse(lines[0]!);
+    expect(parsed.err.stack).toBeTruthy();
+  });
 });
 
 describe('deepRedact (unit-level, the actual redaction function production uses)', () => {
