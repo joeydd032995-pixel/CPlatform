@@ -14,10 +14,13 @@ export const EnvSchema = z.object({
   // serverless instances -- never for real money. When true, DATABASE_URL
   // and REDIS_URL become optional (see the refine below); when false they
   // are required exactly as before.
+  // Forgiving truthy parsing (case-insensitive, trimmed): env values are
+  // typed by hand into dashboards, and "TRUE"/"True " silently meaning
+  // "off" is a miserable way to discover the exact accepted spelling.
   DEMO_MODE: z
     .string()
     .optional()
-    .transform((v) => v === 'true' || v === '1'),
+    .transform((v) => ['true', '1', 'yes', 'on'].includes(v?.trim().toLowerCase() ?? '')),
   DATABASE_URL: z.string().url().optional(),
   REDIS_URL: z.string().url().optional(),
   PORT: z.coerce.number().int().positive().default(4000),

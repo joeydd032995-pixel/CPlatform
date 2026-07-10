@@ -83,9 +83,16 @@ describe('parseEnv', () => {
     expect(() => parseEnv(rest)).toThrow(/unless DEMO_MODE=true/);
   });
 
-  it('rejects a DEMO_MODE value that is not a recognized truthy string as false', () => {
-    const env = parseEnv({ ...VALID_ENV, DEMO_MODE: 'yes' });
-    expect(env.DEMO_MODE).toBe(false);
+  it('accepts DEMO_MODE truthy spellings case-insensitively and trimmed', () => {
+    for (const value of ['true', 'TRUE', 'True ', ' 1', 'yes', 'ON']) {
+      expect(parseEnv({ ...VALID_ENV, DEMO_MODE: value }).DEMO_MODE).toBe(true);
+    }
+  });
+
+  it('treats unrecognized DEMO_MODE values as false', () => {
+    for (const value of ['false', 'no', '0', 'nope', '']) {
+      expect(parseEnv({ ...VALID_ENV, DEMO_MODE: value }).DEMO_MODE).toBe(false);
+    }
   });
 
   it('rejects a non-URL DATABASE_URL', () => {
